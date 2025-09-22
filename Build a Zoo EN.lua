@@ -567,18 +567,12 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-EGG (Hatch via RemoteFunction in nil / getnilinstances)
--- ก๊อปวางได้เลย ต้องใช้ executor ที่รองรับ getnilinstances()
--- ใช้ :InvokeServer("Hatch") ตามที่คุณระบุ
+-- 🥚 AUTO-EGG (Hatch via nil RemoteFunction) — copy/paste ready
+-- ต้องใช้ executor ที่อนุญาต InvokeServer บน RemoteFunction ใน nil
 ----------------------------------------------------------------
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- ======= ตั้งชื่อรีโมทที่ "คาดว่า" ใช้จริง (รู้ชื่อใส่ไว้ จะจับได้ทันที) =======
-local PREFERRED_REMOTE_NAMES = {
-    "Hatch", "EggHatch", "GachaHatch", "HatchRF", "EggRF", "RF_Hatch"
-}
-
--- ======= UI placement helper: หาตำแหน่ง Y ถัดจากแถวสุดท้าย =======
+-- หาตำแหน่ง Y วางถัดจากแถวสุดท้ายใน content
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -592,10 +586,12 @@ local function nextRowY(pad)
 end
 
 -- ลบเก่าถ้ามี (กันซ้ำ)
-local old = content:FindFirstChild("RowAutoEgg")
-if old then old:Destroy() end
+do
+    local old = content:FindFirstChild("RowAutoEgg")
+    if old then old:Destroy() end
+end
 
--- ======= แถว UI =======
+-- กล่องแถว
 local row = Instance.new("Frame")
 row.Name = "RowAutoEgg"
 row.Parent = content
@@ -605,6 +601,7 @@ row.Position = UDim2.fromOffset(10, nextRowY(8))
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
+-- ป้ายชื่อ
 local lb = Instance.new("TextLabel")
 lb.Parent = row
 lb.BackgroundTransparency = 1
@@ -616,6 +613,7 @@ lb.Text = "Auto-Egg (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
+-- สวิตช์เล็ก 60x24
 local sw = Instance.new("TextButton")
 sw.Name = "Switch"
 sw.Parent = row
@@ -636,91 +634,37 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
+-- ข้อความเตือน (ถ้า executor ไม่รองรับวิธีนี้)
 local warnBar = Instance.new("TextLabel")
 warnBar.Parent = row
 warnBar.BackgroundColor3 = Color3.fromRGB(60,48,0)
 warnBar.TextColor3 = Color3.fromRGB(255,235,120)
 warnBar.Font = Enum.Font.GothamBold
 warnBar.TextSize = 13
-warnBar.Text = "RemoteFunction (nil) not found — scanning..."
+warnBar.Text = "Your executor may block InvokeServer on nil RemoteFunction"
 warnBar.Visible = false
 warnBar.Size = UDim2.new(1,-24,0,20)
 warnBar.Position = UDim2.new(0,12,1,-24)
 warnBar.TextXAlignment = Enum.TextXAlignment.Center
 Instance.new("UICorner", warnBar).CornerRadius = UDim.new(0,6)
 
--- ======= Engine =======
+-- ===== Engine =====
 local ON = false
-local INTERVAL = 0.75  -- ความถี่เปิดไข่ (วิ.)
-local SCAN_COOLDOWN = 2
-local loop, scanLoop
-local TargetRF  -- RemoteFunction เป้าหมายที่อยู่ใน nil
+local INTERVAL = 0.75  -- วิ. ระหว่างการ Hatch แต่ละครั้ง (ปรับได้)
+local loop
 
--- ปลอดภัยสำหรับ getnilinstances (ถ้า executor ไม่มี ฟังก์ชันจะคืน [] )
-local function safeGetNilInstances()
-    local ok, arr = pcall(function()
-        if getnilinstances then return getnilinstances() else return {} end
-    end)
-    return ok and arr or {}
-end
-
--- ค้นหา RF ตามชื่อที่ชอบก่อน
-local function findByPreferred()
-    if #PREFERRED_REMOTE_NAMES == 0 then return nil end
-    local all = safeGetNilInstances()
-    for _,inst in ipairs(all) do
-        if typeof(inst) == "Instance" and inst.ClassName == "RemoteFunction" then
-            for _,nm in ipairs(PREFERRED_REMOTE_NAMES) do
-                if string.lower(inst.Name) == string.lower(nm) then
-                    return inst
-                end
-            end
-        end
-    end
-    return nil
-end
-
--- ค้นหา RF แบบเดาชื่อ (contains คีย์เวิร์ด)
-local NAME_HINTS = {"hatch", "egg", "gacha", "pull"}
-local function findByHeuristic()
-    local all = safeGetNilInstances()
-    for _,inst in ipairs(all) do
-        if typeof(inst) == "Instance" and inst.ClassName == "RemoteFunction" then
-            local nm = string.lower(inst.Name or "")
-            for _,kw in ipairs(NAME_HINTS) do
-                if string.find(nm, kw, 1, true) then
-                    return inst
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function resolveRF()
-    -- 1) ลองตามชื่อที่ระบุ
-    local rf = findByPreferred()
-    if rf then return rf end
-    -- 2) heuristic เดาชื่อ
-    rf = findByHeuristic()
-    if rf then return rf end
-    -- 3) หา RemoteFunction ใด ๆ ตัวแรกใน nil (เผื่อเกมมีตัวเดียวจริง ๆ)
-    local all = safeGetNilInstances()
-    for _,inst in ipairs(all) do
-        if typeof(inst) == "Instance" and inst.ClassName == "RemoteFunction" then
-            return inst
-        end
-    end
-    return nil
-end
-
-local HATCH_ARGS = {"Hatch"}  -- << ตามที่คุณยืนยันมา
-
+-- ยิง Hatch 1 ครั้ง: สร้าง RemoteFunction ที่ nil แล้ว InvokeServer("Hatch")
+local HATCH_ARGS = {"Hatch"}
 local function fireOnce()
-    if not TargetRF then return end
-    pcall(function()
-        TargetRF:InvokeServer(unpack(HATCH_ARGS))
+    local ok, err = pcall(function()
+        local rf = Instance.new("RemoteFunction", nil)
+        rf:InvokeServer(unpack(HATCH_ARGS))
     end)
+    if not ok then
+        -- ถ้า executor บล็อกไว้ จะแจ้งเตือนให้เห็น
+        warnBar.Text = "InvokeServer on nil RF failed"
+        warnBar.Visible = true
+    end
 end
 
 local function setUI(state)
@@ -735,54 +679,14 @@ local function setUI(state)
     end
 end
 
-local function ensureRF()
-    if TargetRF and TargetRF.Parent == nil then
-        -- ยังอยู่ใน nil ก็โอเค แต่ตัวอ้างยัง valid ไหม ลองจับด้วย pcall
-        local ok = pcall(function() return TargetRF.Name end)
-        if not ok then TargetRF = nil end
-    end
-    if not TargetRF then
-        TargetRF = resolveRF()
-    end
-    return TargetRF ~= nil
-end
-
-local function startScanLoop()
-    if scanLoop then return end
-    scanLoop = task.spawn(function()
-        while ON do
-            if not ensureRF() then
-                warnBar.Text = "RemoteFunction (nil) not found — scanning..."
-                warnBar.Visible = true
-            else
-                warnBar.Visible = false
-            end
-            for i=1, SCAN_COOLDOWN*10 do
-                if not ON then break end
-                task.wait(0.1)
-            end
-        end
-        scanLoop = nil
-    end)
-end
-
 local function startLoop()
     if ON then return end
     ON = true
+    warnBar.Visible = false
     setUI(true)
-
-    ensureRF()
-    if not TargetRF then
-        warnBar.Text = "RemoteFunction (nil) not found — scanning..."
-        warnBar.Visible = true
-        startScanLoop()
-    else
-        warnBar.Visible = false
-    end
-
     loop = task.spawn(function()
         while ON do
-            if ensureRF() then fireOnce() end
+            fireOnce()
             for i=1, math.floor(INTERVAL*10) do
                 if not ON then break end
                 task.wait(0.1)
