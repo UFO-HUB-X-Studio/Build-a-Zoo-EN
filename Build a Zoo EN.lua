@@ -255,15 +255,27 @@ btnHome.MouseButton1Click:Connect(function()
 end)
 
 ----------------------------------------------------------------
--- 🔁 AFK AUTO-CLICK (compact iOS-style switch)
+-- 🔁 AFK AUTO-CLICK (compact iOS-style switch, green stroke clearer)
 ----------------------------------------------------------------
-if rowAFK then rowAFK:Destroy() end
+-- Fallbacks (กรณีไม่ได้ประกาศไว้ด้านบน)
+local TS = TS or game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LP = LP or Players.LocalPlayer
+local VirtualUser = VirtualUser or game:GetService("VirtualUser")
+local INTERVAL_SEC = INTERVAL_SEC or (5*60) -- 5 นาที
+
+-- ทำลายของเก่าถ้ามี
+local old = content and content:FindFirstChild("UFOX_RowAFK")
+if old then old:Destroy() end
+
+-- แถว AFK + ขอบเขียวชัด
 local rowAFK = make("Frame",{
+    Name="UFOX_RowAFK",
     Parent=content, BackgroundColor3=Color3.fromRGB(18,18,18),
     Size=UDim2.new(1,-20,0,44), Position=UDim2.fromOffset(10,10)
 },{
     make("UICorner",{CornerRadius=UDim.new(0,10)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.85})
+    make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.10}) -- ชัดขึ้น
 })
 
 local lbAFK = make("TextLabel",{
@@ -272,28 +284,30 @@ local lbAFK = make("TextLabel",{
     Position=UDim2.new(0,12,0,0), Size=UDim2.new(1,-150,1,0)
 },{})
 
--- สวิตช์ขนาดเล็ก 60x24 + ปุ่มกลม 20
+-- สวิตช์ขนาดเล็ก 60x24 + ปุ่มกลม 20 + ขอบเขียวชัด
 local swAFK = make("TextButton",{
     Parent=rowAFK, AutoButtonColor=false, Text="",
     AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-12,0.5,0),
     Size=UDim2.fromOffset(60,24), BackgroundColor3=SUB
 },{
     make("UICorner",{CornerRadius=UDim.new(1,0)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.45})
+    make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.10}) -- ชัดขึ้น
 })
 local knob = make("Frame",{
     Parent=swAFK, Size=UDim2.fromOffset(20,20), Position=UDim2.new(0,2,0,2),
     BackgroundColor3=Color3.fromRGB(210,60,60), BorderSizePixel=0
 },{
-    make("UICorner",{CornerRadius=UDim.new(1,0)}),
+    make("UICorner",{CornerRadius=UDim.new(1,0)})
 })
 
+-- Engine
 local AFK_ON=false
 local idleConn
 
 local function simulateClick()
     pcall(function()
-        VirtualUser:Button1Down(Vector2.new(0,0)); task.wait(0.05)
+        VirtualUser:Button1Down(Vector2.new(0,0))
+        task.wait(0.05)
         VirtualUser:Button1Up(Vector2.new(0,0))
     end)
 end
@@ -336,4 +350,12 @@ swAFK.MouseButton1Click:Connect(function()
     if AFK_ON then stopAFK() else startAFK() end
 end)
 
+-- ให้สคริปต์อื่นเรียกได้ด้วย
+_G.UFO_AFK_IsOn  = function() return AFK_ON end
+_G.UFO_AFK_Start = startAFK
+_G.UFO_AFK_Stop  = stopAFK
+_G.UFO_AFK_Set   = function(b) if b then startAFK() else stopAFK() end end
+
+-- เริ่มต้น
 setAFKUI(false)
+----------------------------------------------------------------
