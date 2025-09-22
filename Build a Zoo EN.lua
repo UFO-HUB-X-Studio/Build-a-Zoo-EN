@@ -206,64 +206,87 @@ UIS.InputBegan:Connect(function(i,gp)
 end)
 
 ----------------------------------------------------------------
---                       NEW FEATURES                         --
---            🏠 Home button + AFK Auto-Click switch          --
+-- 🏠 HOME BUTTON (look like real button with hover/press)
 ----------------------------------------------------------------
-
--- 🏠 ปุ่ม Home (อยู่ฝั่งซ้าย)
+if btnHome then btnHome:Destroy() end
 local btnHome = make("TextButton",{
-    Parent=left, AutoButtonColor=false, Text="🏠  Home",
-    Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,8),
-    BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG
+    Parent=left, AutoButtonColor=false,
+    Size=UDim2.new(1,-16,0,36), Position=UDim2.fromOffset(8,8),
+    BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
+    Text="", ClipsDescendants=true
 },{
     make("UICorner",{CornerRadius=UDim.new(0,10)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.6})
+    make("UIStroke",{Color=ACCENT, Transparency=0.5})
 })
+
+-- ไอคอน + ข้อความ
+local homeRow = make("Frame",{Parent=btnHome, BackgroundTransparency=1, Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)},{
+    make("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+        HorizontalAlignment=Enum.HorizontalAlignment.Left, VerticalAlignment=Enum.VerticalAlignment.Center})
+})
+make("TextLabel",{Parent=homeRow, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+    Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
+make("TextLabel",{Parent=homeRow, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+    Font=Enum.Font.GothamBold, TextSize=15, Text="Home", TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
+
+-- เอฟเฟกต์ hover/press
 btnHome.MouseEnter:Connect(function()
     TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
 end)
 btnHome.MouseLeave:Connect(function()
     TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
 end)
+btnHome.MouseButton1Down:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.06), {BackgroundColor3 = Color3.fromRGB(40,40,40)}):Play()
+end)
+btnHome.MouseButton1Up:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+end)
+
 btnHome.MouseButton1Click:Connect(function()
     if typeof(_G.UFO_OpenHomePage)=="function" then
         pcall(_G.UFO_OpenHomePage)
     else
-        -- ไม่มีฟังก์ชันให้เปิดหน้าอื่น ก็กะพริบกล่องเนื้อหาขวาแจ้งผู้ใช้
+        -- กรณีไม่มีฟังก์ชันให้เปิดหน้า
         TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
         task.delay(0.15, function()
-            TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = D_GREY}):Play()
+            TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
         end)
     end
 end)
 
--- 🔁 AFK Auto-Click (อยู่ฝั่งขวาเป็นแถวพร้อมสวิตช์)
+----------------------------------------------------------------
+-- 🔁 AFK AUTO-CLICK (compact iOS-style switch)
+----------------------------------------------------------------
+if rowAFK then rowAFK:Destroy() end
 local rowAFK = make("Frame",{
     Parent=content, BackgroundColor3=Color3.fromRGB(18,18,18),
-    Size=UDim2.new(1,-20,0,48), Position=UDim2.fromOffset(10,10)
+    Size=UDim2.new(1,-20,0,44), Position=UDim2.fromOffset(10,10)
 },{
     make("UICorner",{CornerRadius=UDim.new(0,10)}),
     make("UIStroke",{Color=ACCENT, Transparency=0.85})
 })
+
 local lbAFK = make("TextLabel",{
     Parent=rowAFK, BackgroundTransparency=1, Text="AFK Auto-Click (OFF)",
-    Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left,
-    Position=UDim2.new(0,12,0,0), Size=UDim2.new(1,-170,1,0)
+    Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left,
+    Position=UDim2.new(0,12,0,0), Size=UDim2.new(1,-150,1,0)
 },{})
 
+-- สวิตช์ขนาดเล็ก 60x24 + ปุ่มกลม 20
 local swAFK = make("TextButton",{
     Parent=rowAFK, AutoButtonColor=false, Text="",
     AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-12,0.5,0),
-    Size=UDim2.fromOffset(84,28), BackgroundColor3=SUB
+    Size=UDim2.fromOffset(60,24), BackgroundColor3=SUB
 },{
-    make("UICorner",{CornerRadius=UDim.new(0,14)}),
+    make("UICorner",{CornerRadius=UDim.new(1,0)}),
     make("UIStroke",{Color=ACCENT, Transparency=0.45})
 })
 local knob = make("Frame",{
-    Parent=swAFK, Size=UDim2.fromOffset(40,28), Position=UDim2.new(0,0,0,0),
-    BackgroundColor3=OFFCOL, BorderSizePixel=0
+    Parent=swAFK, Size=UDim2.fromOffset(20,20), Position=UDim2.new(0,2,0,2),
+    BackgroundColor3=Color3.fromRGB(210,60,60), BorderSizePixel=0
 },{
-    make("UICorner",{CornerRadius=UDim.new(0,14)})
+    make("UICorner",{CornerRadius=UDim.new(1,0)}),
 })
 
 local AFK_ON=false
@@ -275,15 +298,19 @@ local function simulateClick()
         VirtualUser:Button1Up(Vector2.new(0,0))
     end)
 end
+
 local function setAFKUI(on)
     if on then
         lbAFK.Text = "AFK Auto-Click (ON)"
-        TS:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(1,-40,0,0), BackgroundColor3=ACCENT}):Play()
+        TS:Create(swAFK, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob,  TweenInfo.new(0.12), {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
     else
         lbAFK.Text = "AFK Auto-Click (OFF)"
-        TS:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(0,0,0,0), BackgroundColor3=OFFCOL}):Play()
+        TS:Create(swAFK, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+        TS:Create(knob,  TweenInfo.new(0.12), {Position=UDim2.new(0,2,0,2),  BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
 end
+
 local function startAFK()
     if AFK_ON then return end
     AFK_ON=true
@@ -298,13 +325,16 @@ local function startAFK()
     end)
     setAFKUI(true)
 end
+
 local function stopAFK()
     if not AFK_ON then return end
     AFK_ON=false
     if idleConn then idleConn:Disconnect(); idleConn=nil end
     setAFKUI(false)
 end
+
 swAFK.MouseButton1Click:Connect(function()
     if AFK_ON then stopAFK() else startAFK() end
 end)
+
 setAFKUI(false)
