@@ -362,38 +362,47 @@ setAFKUI(false)
 -- 🔁 AUTO-CLAIM (every 5s) — compact switch row
 -- ต้องมีตัวแปร/ฟังก์ชันจาก UI เดิม: TS, content, ACCENT, SUB, FG
 -- และมี Players/ReplicatedStorage ใช้งานได้
-local RS       = game:GetService("ReplicatedStorage")
-local REMOTE_CLAIM = RS:WaitForChild("UFOX_ClaimAll")
+-- ===================== AUTO-CLAIM SWITCH (stack under AFK) =====================
+local RS = game:GetService("ReplicatedStorage")
+local TweenInfoFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- ลบของเก่าถ้ามี (กันซ้ำ)
-local oldRow = content:FindFirstChild("RowAutoClaim")
-if oldRow then oldRow:Destroy() end
+-- หาแถว AFK ถ้ามี เพื่อวางด้านล่างอัตโนมัติ
+local yBase = 10
+local afkRow = content:FindFirstChild("RowAFK") or content:FindFirstChild("rowAFK")
+if afkRow and afkRow:IsA("Frame") then
+    yBase = afkRow.Position.Y.Offset + afkRow.Size.Y.Offset + 8
+end
+
+-- ลบของเก่า (กันซ้ำ)
+local old = content:FindFirstChild("RowAutoClaim")
+if old then old:Destroy() end
 
 -- กล่องแถว
-local rowAuto = Instance.new("Frame")
-rowAuto.Name = "RowAutoClaim"
-rowAuto.Parent = content
-rowAuto.BackgroundColor3 = Color3.fromRGB(18,18,18)
-rowAuto.Size = UDim2.new(1,-20,0,44)
-rowAuto.Position = UDim2.fromOffset(10, 58)  -- ถ้ามี AFK อยู่บรรทัดบน ให้เลื่อนลงเล็กน้อย
-Instance.new("UICorner", rowAuto).CornerRadius = UDim.new(0,10)
-local st = Instance.new("UIStroke", rowAuto); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
+local row = Instance.new("Frame")
+row.Name = "RowAutoClaim"
+row.Parent = content
+row.BackgroundColor3 = Color3.fromRGB(18,18,18)
+row.Size = UDim2.new(1,-20,0,44)
+row.Position = UDim2.fromOffset(10, yBase)
+Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
+local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
 -- ป้ายชื่อ
 local lb = Instance.new("TextLabel")
-lb.Parent = rowAuto
+lb.Parent = row
 lb.BackgroundTransparency = 1
-lb.Text = "Auto-Claim (OFF)"
 lb.Font = Enum.Font.GothamBold
 lb.TextSize = 15
-lb.TextColor3 = FG
 lb.TextXAlignment = Enum.TextXAlignment.Left
+lb.TextColor3 = FG
+lb.Text = "Auto-Claim (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์ (60x24) + ปุ่มกลม (20)
+-- สวิตช์แบบ iOS เล็ก 60x24
 local sw = Instance.new("TextButton")
-sw.Parent = rowAuto
+sw.Name = "Switch"
+sw.Parent = row
 sw.AutoButtonColor = false
 sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
@@ -411,31 +420,64 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
--- Engine
+-- แถบเตือน (โผล่เมื่อไม่พบ RemoteEvent)
+local warnBar = Instance.new("TextLabel")
+warnBar.Parent = row
+warnBar.BackgroundColor3 = Color3.fromRGB(60,48,0)
+warnBar.TextColor3 = Color3.fromRGB(255,235,120)
+warnBar.Font = Enum.Font.GothamBold
+warnBar.TextSize = 13
+warnBar.Text = "Server 'UFOX_ClaimAll' not found"
+warnBar.Visible = false
+warnBar.Size = UDim2.new(1,-24,0,20)
+warnBar.Position = UDim2.new(0,12,1,-24)
+warnBar.TextXAlignment = Enum.TextXAlignment.Center
+Instance.new("UICorner", warnBar).CornerRadius = UDim.new(0,6)
+
+-- ===== Engine =====
 local ON = false
 local INTERVAL = 5  -- วินาที
+local loop
+
+-- พยายามหา RemoteEvent (ไม่ใช้ WaitForChild เพื่อไม่ค้าง)
+local REMOTE_CLAIM = RS:FindFirstChild("UFOX_ClaimAll")
+if not REMOTE_CLAIM then
+    -- รอแบบไม่บล็อค 3 วิ
+    task.spawn(function()
+        local t0 = os.clock()
+        while (os.clock() - t0) < 3 do
+            REMOTE_CLAIM = RS:FindFirstChild("UFOX_ClaimAll")
+            if REMOTE_CLAIM then break end
+            task.wait(0.1)
+        end
+        if not REMOTE_CLAIM then
+            warnBar.Visible = true
+        end
+    end)
+end
 
 local function setUI(state)
     if state then
         lb.Text = "Auto-Claim (ON)"
-        TS:Create(sw,   TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenInfo.new(0.12), {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+        TS:Create(sw,   TweenInfoFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob, TweenInfoFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
     else
         lb.Text = "Auto-Claim (OFF)"
-        TS:Create(sw,   TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenInfo.new(0.12), {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(sw,   TweenInfoFast, {BackgroundColor3 = SUB}):Play()
+        TS:Create(knob, TweenInfoFast, {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
     end
 end
 
-local loop
 local function startLoop()
-    if loop then return end
+    if loop or not REMOTE_CLAIM then
+        if not REMOTE_CLAIM then warnBar.Visible = true end
+        return
+    end
     loop = task.spawn(function()
         while ON do
             pcall(function()
-                REMOTE_CLAIM:FireServer()
+                REMOTE_CLAIM:FireServer() -- เรียกฝั่งเซิร์ฟเวอร์ให้บวกเงิน
             end)
-            -- รอทีละ 0.1 เพื่อให้ปิดกลางทางได้ลื่น
             for i = 1, INTERVAL*10 do
                 if not ON then break end
                 task.wait(0.1)
