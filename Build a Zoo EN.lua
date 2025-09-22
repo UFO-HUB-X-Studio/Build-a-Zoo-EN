@@ -1,5 +1,5 @@
 --========================================================
--- UFO HUB X — FULL (no left HOME btn, no right welcome text)
+-- UFO HUB X — FULL (now with Home button + AFK switch)
 --========================================================
 
 -------------------- Services --------------------
@@ -7,6 +7,9 @@ local TS      = game:GetService("TweenService")
 local UIS     = game:GetService("UserInputService")
 local CG      = game:GetService("CoreGui")
 local Camera  = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local LP      = Players.LocalPlayer
+local VirtualUser = game:GetService("VirtualUser")
 
 -------------------- CONFIG --------------------
 local LOGO_ID      = 112676905543996  -- โลโก้
@@ -17,6 +20,9 @@ local TOGGLE_DY    = -70              -- ยกปุ่มขึ้นจาก
 local CENTER_TWEEN = true
 local CENTER_TIME  = 0.25
 local TOGGLE_DOCKED = true            -- เริ่มแบบเกาะซ้าย
+
+-- AFK
+local INTERVAL_SEC = 5*60             -- กี่วินาทีต่อหนึ่งครั้งคลิก (5 นาที)
 
 -------------------- Helpers --------------------
 local function safeParent(gui)
@@ -40,6 +46,8 @@ local ACCENT = Color3.fromRGB(0,255,140)
 local BG     = Color3.fromRGB(12,12,12)
 local FG     = Color3.fromRGB(230,230,230)
 local SUB    = Color3.fromRGB(22,22,22)
+local D_GREY = Color3.fromRGB(16,16,16)
+local OFFCOL = Color3.fromRGB(210,60,60)
 
 -------------------- ScreenGuis --------------------
 local mainGui   = make("ScreenGui", {Name="UFOHubX_Main", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, {})
@@ -104,20 +112,19 @@ local function mkX(rot)
 end
 mkX(45); mkX(-45)
 
--- Sidebar (ปล่อยว่าง พร้อมใส่ปุ่มในอนาคต) ---------------------
+-- Sidebar ------------------------------------------------
 local left = make("Frame", {Parent=main, Size=UDim2.new(0,170,1,-60), Position=UDim2.new(0,12,0,55),
     BackgroundColor3=Color3.fromRGB(18,18,18)},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.85})})
 make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
 
--- Content (ไม่มีหัวข้อ/ตัวหนังสือใดๆ) --------------------------
+-- Content ------------------------------------------------
 local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
-    BackgroundColor3=Color3.fromRGB(16,16,16)},
+    BackgroundColor3=D_GREY},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
 
 local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
     BackgroundTransparency=1, Visible=true}, {})
--- ✨ ไม่มี TextLabel ในหน้านี้แล้ว ตามที่ขอ
 
 -------------------- Toggle Button (dock + drag) --------------------
 local btnToggle = make("ImageButton", {
@@ -176,155 +183,128 @@ local function centerMain(animated)
     if TOGGLE_DOCKED then dockToggleToMain() end
 end
 
--- เริ่มต้น: จัดกลาง + dock
 centerMain(false)
 Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function() centerMain(false) end)
-
 main.InputEnded:Connect(function(i)
     if i.UserInputType==Enum.UserInputType.MouseButton1 and TOGGLE_DOCKED then
         dockToggleToMain()
     end
 end)
-
 btnToggle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        TOGGLE_DOCKED = false -- ลากเอง → ปลด dock อัตโนมัติ
+        TOGGLE_DOCKED = false -- ลากเอง → ปลด dock
     end
 end)
-
--- ปุ่มลัด: F9 = จัดกลาง + รี-dock, F8 = toggle dock on/off
 UIS.InputBegan:Connect(function(i,gp)
     if gp then return end
     if i.KeyCode==Enum.KeyCode.F9 then
-        TOGGLE_DOCKED = true
-        centerMain(true)
+        TOGGLE_DOCKED = true; centerMain(true)
     elseif i.KeyCode==Enum.KeyCode.F8 then
         TOGGLE_DOCKED = not TOGGLE_DOCKED
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
 
--- UFO HUB X — AFK Switch (auto click every 5 min)
--- ใส่ไฟล์นี้ไว้ตรงไหนก็ได้ในบูตโหลดของคุณ
+----------------------------------------------------------------
+--                       NEW FEATURES                         --
+--            🏠 Home button + AFK Auto-Click switch          --
+----------------------------------------------------------------
 
--- ===== Config =====
-local INTERVAL_SEC = 5 * 60  -- 5 นาที (เปลี่ยนได้)
-local POS          = UDim2.new(1,-160, 1,-100) -- ตำแหน่งกล่อง (มุมขวาล่าง)
-local ACCENT_ON    = Color3.fromRGB(0,255,140)
-local ACCENT_OFF   = Color3.fromRGB(210,60,60)
-local BG_BOX       = Color3.fromRGB(16,16,16)
-local FG_TEXT      = Color3.fromRGB(235,235,235)
-
--- ===== Services =====
-local Players   = game:GetService("Players")
-local CG        = game:GetService("CoreGui")
-local TS        = game:GetService("TweenService")
-local LP        = Players.LocalPlayer
-local VirtualUser = game:GetService("VirtualUser")
-
--- ===== Helpers =====
-local function softParent(gui)
-    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
-    local ok=false
-    if gethui then ok = pcall(function() gui.Parent = gethui() end) end
-    if not ok then gui.Parent = CG end
-    pcall(function()
-        gui.ResetOnSpawn = false
-        gui.IgnoreGuiInset = true
-        gui.DisplayOrder = 999999
-        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    end)
-end
-
-local function make(class, props, kids)
-    local o=Instance.new(class)
-    for k,v in pairs(props or {}) do o[k]=v end
-    for _,c in ipairs(kids or {}) do c.Parent=o end
-    return o
-end
-
--- ===== Root GUI =====
-local gui = Instance.new("ScreenGui")
-gui.Name = "UFOX_AFK_Toggle"
-softParent(gui)
-
-local card = make("Frame", {
-    Parent=gui, Size=UDim2.fromOffset(150, 60),
-    AnchorPoint=Vector2.new(1,1), Position=POS,
-    BackgroundColor3=BG_BOX, BorderSizePixel=0
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,12)}),
-    make("UIStroke",{Color=Color3.fromRGB(60,60,60), Transparency=0.5}),
-})
-
-local title = make("TextLabel",{
-    Parent=card, BackgroundTransparency=1,
-    Position=UDim2.new(0,12,0,8), Size=UDim2.new(1,-24,0,22),
-    Font=Enum.Font.GothamBold, TextSize=16, Text="AFK: OFF",
-    TextColor3=FG_TEXT, TextXAlignment=Enum.TextXAlignment.Left
-},{})
-
--- สวิตช์
-local switch = make("TextButton",{
-    Parent=card, AutoButtonColor=false,
-    Position=UDim2.new(0,12,0,32), Size=UDim2.fromOffset(126, 20),
-    BackgroundColor3=Color3.fromRGB(36,36,36), Text=""
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,10)})
-})
-local knob = make("Frame",{
-    Parent=switch, BackgroundColor3=ACCENT_OFF,
-    Size=UDim2.fromOffset(56, 20), Position=UDim2.new(0,0,0,0)
+-- 🏠 ปุ่ม Home (อยู่ฝั่งซ้าย)
+local btnHome = make("TextButton",{
+    Parent=left, AutoButtonColor=false, Text="🏠  Home",
+    Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,8),
+    BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG
 },{
     make("UICorner",{CornerRadius=UDim.new(0,10)}),
+    make("UIStroke",{Color=ACCENT, Transparency=0.6})
+})
+btnHome.MouseEnter:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+end)
+btnHome.MouseLeave:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+end)
+btnHome.MouseButton1Click:Connect(function()
+    if typeof(_G.UFO_OpenHomePage)=="function" then
+        pcall(_G.UFO_OpenHomePage)
+    else
+        -- ไม่มีฟังก์ชันให้เปิดหน้าอื่น ก็กะพริบกล่องเนื้อหาขวาแจ้งผู้ใช้
+        TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
+        task.delay(0.15, function()
+            TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = D_GREY}):Play()
+        end)
+    end
+end)
+
+-- 🔁 AFK Auto-Click (อยู่ฝั่งขวาเป็นแถวพร้อมสวิตช์)
+local rowAFK = make("Frame",{
+    Parent=content, BackgroundColor3=Color3.fromRGB(18,18,18),
+    Size=UDim2.new(1,-20,0,48), Position=UDim2.fromOffset(10,10)
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,10)}),
+    make("UIStroke",{Color=ACCENT, Transparency=0.85})
+})
+local lbAFK = make("TextLabel",{
+    Parent=rowAFK, BackgroundTransparency=1, Text="AFK Auto-Click (OFF)",
+    Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left,
+    Position=UDim2.new(0,12,0,0), Size=UDim2.new(1,-170,1,0)
+},{})
+
+local swAFK = make("TextButton",{
+    Parent=rowAFK, AutoButtonColor=false, Text="",
+    AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-12,0.5,0),
+    Size=UDim2.fromOffset(84,28), BackgroundColor3=SUB
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,14)}),
+    make("UIStroke",{Color=ACCENT, Transparency=0.45})
+})
+local knob = make("Frame",{
+    Parent=swAFK, Size=UDim2.fromOffset(40,28), Position=UDim2.new(0,0,0,0),
+    BackgroundColor3=OFFCOL, BorderSizePixel=0
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,14)})
 })
 
--- ===== AFK Engine =====
-local enabled = false
-local loopThread = nil
-local idleConn   = nil
+local AFK_ON=false
+local idleConn
 
 local function simulateClick()
-    -- แตะหน้าจอเบา ๆ เพื่อกันหลุด idle
     pcall(function()
-        VirtualUser:Button1Down(Vector2.new(0,0))
-        task.wait(0.05)
+        VirtualUser:Button1Down(Vector2.new(0,0)); task.wait(0.05)
         VirtualUser:Button1Up(Vector2.new(0,0))
     end)
 end
-
+local function setAFKUI(on)
+    if on then
+        lbAFK.Text = "AFK Auto-Click (ON)"
+        TS:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(1,-40,0,0), BackgroundColor3=ACCENT}):Play()
+    else
+        lbAFK.Text = "AFK Auto-Click (OFF)"
+        TS:Create(knob, TweenInfo.new(0.12), {Position=UDim2.new(0,0,0,0), BackgroundColor3=OFFCOL}):Play()
+    end
+end
 local function startAFK()
-    if enabled then return end
-    enabled = true
-    -- สี/สถานะ UI
-    title.Text = "AFK: ON"
-    TS:Create(knob, TweenInfo.new(0.12), {BackgroundColor3=ACCENT_ON, Position=UDim2.new(1,-56,0,0)}):Play()
-
-    -- กัน Roblox Idle เด้งเอง (สำรอง)
-    idleConn = LP.Idled:Connect(function()
-        simulateClick()
-    end)
-
-    -- ลูปทุก INTERVAL_SEC
-    loopThread = task.spawn(function()
-        while enabled do
+    if AFK_ON then return end
+    AFK_ON=true
+    if idleConn then idleConn:Disconnect() end
+    idleConn = LP.Idled:Connect(simulateClick)
+    task.spawn(function()
+        while AFK_ON do
             task.wait(INTERVAL_SEC)
-            if not enabled then break end
+            if not AFK_ON then break end
             simulateClick()
         end
     end)
+    setAFKUI(true)
 end
-
 local function stopAFK()
-    if not enabled then return end
-    enabled = false
-    title.Text = "AFK: OFF"
-    TS:Create(knob, TweenInfo.new(0.12), {BackgroundColor3=ACCENT_OFF, Position=UDim2.new(0,0,0,0)}):Play()
+    if not AFK_ON then return end
+    AFK_ON=false
     if idleConn then idleConn:Disconnect(); idleConn=nil end
-    -- ไม่ต้อง kill thread แรง ๆ ปล่อยหลุดจาก while ได้เอง
+    setAFKUI(false)
 end
-
--- สลับสวิตช์
-switch.MouseButton1Click:Connect(function()
-    if enabled then stopAFK() else startAFK() end
+swAFK.MouseButton1Click:Connect(function()
+    if AFK_ON then stopAFK() else startAFK() end
 end)
+setAFKUI(false)
