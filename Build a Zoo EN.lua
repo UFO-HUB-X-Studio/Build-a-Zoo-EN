@@ -359,3 +359,100 @@ _G.UFO_AFK_Set   = function(b) if b then startAFK() else stopAFK() end end
 -- เริ่มต้น
 setAFKUI(false)
 ----------------------------------------------------------------
+-- 🔁 AUTO-CLAIM (every 5s) — compact switch row
+-- ต้องมีตัวแปร/ฟังก์ชันจาก UI เดิม: TS, content, ACCENT, SUB, FG
+-- และมี Players/ReplicatedStorage ใช้งานได้
+local RS       = game:GetService("ReplicatedStorage")
+local REMOTE_CLAIM = RS:WaitForChild("UFOX_ClaimAll")
+
+-- ลบของเก่าถ้ามี (กันซ้ำ)
+local oldRow = content:FindFirstChild("RowAutoClaim")
+if oldRow then oldRow:Destroy() end
+
+-- กล่องแถว
+local rowAuto = Instance.new("Frame")
+rowAuto.Name = "RowAutoClaim"
+rowAuto.Parent = content
+rowAuto.BackgroundColor3 = Color3.fromRGB(18,18,18)
+rowAuto.Size = UDim2.new(1,-20,0,44)
+rowAuto.Position = UDim2.fromOffset(10, 58)  -- ถ้ามี AFK อยู่บรรทัดบน ให้เลื่อนลงเล็กน้อย
+Instance.new("UICorner", rowAuto).CornerRadius = UDim.new(0,10)
+local st = Instance.new("UIStroke", rowAuto); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
+
+-- ป้ายชื่อ
+local lb = Instance.new("TextLabel")
+lb.Parent = rowAuto
+lb.BackgroundTransparency = 1
+lb.Text = "Auto-Claim (OFF)"
+lb.Font = Enum.Font.GothamBold
+lb.TextSize = 15
+lb.TextColor3 = FG
+lb.TextXAlignment = Enum.TextXAlignment.Left
+lb.Position = UDim2.new(0,12,0,0)
+lb.Size = UDim2.new(1,-150,1,0)
+
+-- สวิตช์ (60x24) + ปุ่มกลม (20)
+local sw = Instance.new("TextButton")
+sw.Parent = rowAuto
+sw.AutoButtonColor = false
+sw.Text = ""
+sw.AnchorPoint = Vector2.new(1,0.5)
+sw.Position = UDim2.new(1,-12,0.5,0)
+sw.Size = UDim2.fromOffset(60,24)
+sw.BackgroundColor3 = SUB
+Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
+local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
+
+local knob = Instance.new("Frame")
+knob.Parent = sw
+knob.Size = UDim2.fromOffset(20,20)
+knob.Position = UDim2.new(0,2,0,2)
+knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
+knob.BorderSizePixel = 0
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+-- Engine
+local ON = false
+local INTERVAL = 5  -- วินาที
+
+local function setUI(state)
+    if state then
+        lb.Text = "Auto-Claim (ON)"
+        TS:Create(sw,   TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob, TweenInfo.new(0.12), {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+    else
+        lb.Text = "Auto-Claim (OFF)"
+        TS:Create(sw,   TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+        TS:Create(knob, TweenInfo.new(0.12), {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+    end
+end
+
+local loop
+local function startLoop()
+    if loop then return end
+    loop = task.spawn(function()
+        while ON do
+            pcall(function()
+                REMOTE_CLAIM:FireServer()
+            end)
+            -- รอทีละ 0.1 เพื่อให้ปิดกลางทางได้ลื่น
+            for i = 1, INTERVAL*10 do
+                if not ON then break end
+                task.wait(0.1)
+            end
+        end
+        loop = nil
+    end)
+end
+
+local function stopLoop()
+    ON = false
+end
+
+sw.MouseButton1Click:Connect(function()
+    ON = not ON
+    setUI(ON)
+    if ON then startLoop() else stopLoop() end
+end)
+
+setUI(false)
