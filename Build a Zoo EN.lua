@@ -567,12 +567,12 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-EGG (Hatch via nil RemoteFunction) — copy/paste ready
--- ต้องใช้ executor ที่อนุญาต InvokeServer บน RemoteFunction ใน nil
+-- 🥚 AUTO-EGG (เปิดไข่อัตโนมัติ ด้วย ResourceRE:FireServer)
 ----------------------------------------------------------------
+local RS = game:GetService("ReplicatedStorage")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- หาตำแหน่ง Y วางถัดจากแถวสุดท้ายใน content
+-- หาตำแหน่ง Y วางต่อจากแถวสุดท้าย
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -585,11 +585,9 @@ local function nextRowY(pad)
     return y
 end
 
--- ลบเก่าถ้ามี (กันซ้ำ)
-do
-    local old = content:FindFirstChild("RowAutoEgg")
-    if old then old:Destroy() end
-end
+-- ลบเก่ากันซ้ำ
+local old = content:FindFirstChild("RowAutoEgg")
+if old then old:Destroy() end
 
 -- กล่องแถว
 local row = Instance.new("Frame")
@@ -613,7 +611,7 @@ lb.Text = "Auto-Egg (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24
+-- สวิตช์เล็ก
 local sw = Instance.new("TextButton")
 sw.Name = "Switch"
 sw.Parent = row
@@ -634,56 +632,37 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
--- ข้อความเตือน (ถ้า executor ไม่รองรับวิธีนี้)
-local warnBar = Instance.new("TextLabel")
-warnBar.Parent = row
-warnBar.BackgroundColor3 = Color3.fromRGB(60,48,0)
-warnBar.TextColor3 = Color3.fromRGB(255,235,120)
-warnBar.Font = Enum.Font.GothamBold
-warnBar.TextSize = 13
-warnBar.Text = "Your executor may block InvokeServer on nil RemoteFunction"
-warnBar.Visible = false
-warnBar.Size = UDim2.new(1,-24,0,20)
-warnBar.Position = UDim2.new(0,12,1,-24)
-warnBar.TextXAlignment = Enum.TextXAlignment.Center
-Instance.new("UICorner", warnBar).CornerRadius = UDim.new(0,6)
-
--- ===== Engine =====
+-- Engine
 local ON = false
-local INTERVAL = 0.75  -- วิ. ระหว่างการ Hatch แต่ละครั้ง (ปรับได้)
+local INTERVAL = 1.0 -- วินาทีต่อการ Hatch 1 ครั้ง
 local loop
-
--- ยิง Hatch 1 ครั้ง: สร้าง RemoteFunction ที่ nil แล้ว InvokeServer("Hatch")
-local HATCH_ARGS = {"Hatch"}
-local function fireOnce()
-    local ok, err = pcall(function()
-        local rf = Instance.new("RemoteFunction", nil)
-        rf:InvokeServer(unpack(HATCH_ARGS))
-    end)
-    if not ok then
-        -- ถ้า executor บล็อกไว้ จะแจ้งเตือนให้เห็น
-        warnBar.Text = "InvokeServer on nil RF failed"
-        warnBar.Visible = true
-    end
-end
+local ResourceRE
 
 local function setUI(state)
     if state then
         lb.Text = "Auto-Egg (ON)"
         TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
     else
         lb.Text = "Auto-Egg (OFF)"
         TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2),  BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
+end
+
+local function fireOnce()
+    if not ResourceRE then return end
+    local args = {"PULL","FX/FX_born"}
+    pcall(function()
+        ResourceRE:FireServer(unpack(args))
+    end)
 end
 
 local function startLoop()
     if ON then return end
+    ResourceRE = RS:WaitForChild("Remote"):WaitForChild("ResourceRE",3)
+    if not ResourceRE then return end
     ON = true
-    warnBar.Visible = false
-    setUI(true)
     loop = task.spawn(function()
         while ON do
             fireOnce()
@@ -694,6 +673,7 @@ local function startLoop()
         end
         loop = nil
     end)
+    setUI(true)
 end
 
 local function stopLoop()
@@ -705,11 +685,10 @@ sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
 
--- ให้สคริปต์อื่นเรียกได้
-_G.UFO_EGG_IsOn  = function() return ON end
+-- API สาธารณะ
 _G.UFO_EGG_Start = startLoop
 _G.UFO_EGG_Stop  = stopLoop
 _G.UFO_EGG_Set   = function(b) if b then startLoop() else stopLoop() end end
 
--- เริ่มต้นปิด
+-- เริ่มต้น OFF
 setUI(false)
