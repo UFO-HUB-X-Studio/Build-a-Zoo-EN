@@ -328,13 +328,3 @@ end
 switch.MouseButton1Click:Connect(function()
     if enabled then stopAFK() else startAFK() end
 end)
-
--- ===== Public API (ถ้าจะเรียกจากสคริปต์อื่น) =====
-_G.UFOX_AFK = {
-    Enable  = startAFK,
-    Disable = stopAFK,
-    Toggle  = function() if enabled then stopAFK() else startAFK() end end,
-    IsOn    = function() return enabled end,
-    SetInterval = function(sec) INTERVAL_SEC = math.max(5, tonumber(sec) or INTERVAL_SEC) end,
-    SetPosition = function(udim2) if typeof(udim2)=="UDim2" then card.Position = udim2 end end
-}
