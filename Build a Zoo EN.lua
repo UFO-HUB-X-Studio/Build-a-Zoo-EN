@@ -374,12 +374,9 @@ local yTop = 10
 local rowAFK = content:FindFirstChild("UFOX_RowAFK") or buildRowAFK(yTop)
 
 ----------------------------------------------------------------
--- 💰 AUTO-CLAIM ทุก 5 วิ (ยิง RemoteEvent: ReplicatedStorage.UFOX_ClaimAll)
+-- 💰 AUTO-CLAIM (ทุก 5 วิ ยิง Claim ทุก Pet)
 ----------------------------------------------------------------
-do
-    local old = content:FindFirstChild("UFOX_RowClaim"); if old then old:Destroy() end
-    local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
-
+local function buildAutoClaimRow(y)
     local row = make("Frame",{
         Name="UFOX_RowClaim", Parent=content, BackgroundColor3=Color3.fromRGB(18,18,18),
         Size=UDim2.new(1,-20,0,44), Position=UDim2.fromOffset(10,y)
@@ -410,32 +407,12 @@ do
         make("UICorner",{CornerRadius=UDim.new(1,0)})
     })
 
-    local WARN = make("TextLabel",{
-        Parent=row, BackgroundColor3=Color3.fromRGB(60,48,0),
-        TextColor3=Color3.fromRGB(255,235,120), Font=Enum.Font.GothamBold, TextSize=13,
-        Text="Server 'UFOX_ClaimAll' not found", Visible=false,
-        Size=UDim2.new(1,-24,0,20), Position=UDim2.new(0,12,1,-24),
-        TextXAlignment=Enum.TextXAlignment.Center
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,6)})
-    })
-
+    ----------------------------------------------------------------
+    -- Engine
+    ----------------------------------------------------------------
     local ON=false
     local INTERVAL=5
     local loop
-    local EVT = RS:FindFirstChild("UFOX_ClaimAll")
-
-    -- ลองรอให้เซิร์ฟเวอร์สร้างสักครู่
-    if not EVT then
-        task.spawn(function()
-            for _=1,30 do
-                EVT = RS:FindFirstChild("UFOX_ClaimAll")
-                if EVT then break end
-                task.wait(0.1)
-            end
-            if not EVT then WARN.Visible = true end
-        end)
-    end
 
     local function setUI(state)
         if state then
@@ -449,11 +426,28 @@ do
         end
     end
 
+    local function claimAllPets()
+        local petsFolder = workspace:FindFirstChild("Pets")
+        if not petsFolder then return end
+
+        for _,pet in ipairs(petsFolder:GetChildren()) do
+            local root = pet:FindFirstChild("RootPart")
+            if root then
+                local re = root:FindFirstChild("RE")
+                if re and re:IsA("RemoteEvent") then
+                    pcall(function()
+                        re:FireServer("Claim")
+                    end)
+                end
+            end
+        end
+    end
+
     local function startLoop()
-        if loop or not EVT then if not EVT then WARN.Visible=true end; return end
+        if loop then return end
         loop = task.spawn(function()
             while ON do
-                pcall(function() EVT:FireServer() end)
+                claimAllPets()
                 for _=1, INTERVAL*10 do
                     if not ON then break end
                     task.wait(0.1)
@@ -472,4 +466,6 @@ do
     setUI(false)
 end
 
-
+-- เรียกสร้าง Auto-Claim Row ใต้ AFK
+local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
+buildAutoClaimRow(y)
