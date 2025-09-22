@@ -203,3 +203,138 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
+
+-- UFO HUB X — AFK Switch (auto click every 5 min)
+-- ใส่ไฟล์นี้ไว้ตรงไหนก็ได้ในบูตโหลดของคุณ
+
+-- ===== Config =====
+local INTERVAL_SEC = 5 * 60  -- 5 นาที (เปลี่ยนได้)
+local POS          = UDim2.new(1,-160, 1,-100) -- ตำแหน่งกล่อง (มุมขวาล่าง)
+local ACCENT_ON    = Color3.fromRGB(0,255,140)
+local ACCENT_OFF   = Color3.fromRGB(210,60,60)
+local BG_BOX       = Color3.fromRGB(16,16,16)
+local FG_TEXT      = Color3.fromRGB(235,235,235)
+
+-- ===== Services =====
+local Players   = game:GetService("Players")
+local CG        = game:GetService("CoreGui")
+local TS        = game:GetService("TweenService")
+local LP        = Players.LocalPlayer
+local VirtualUser = game:GetService("VirtualUser")
+
+-- ===== Helpers =====
+local function softParent(gui)
+    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
+    local ok=false
+    if gethui then ok = pcall(function() gui.Parent = gethui() end) end
+    if not ok then gui.Parent = CG end
+    pcall(function()
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        gui.DisplayOrder = 999999
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    end)
+end
+
+local function make(class, props, kids)
+    local o=Instance.new(class)
+    for k,v in pairs(props or {}) do o[k]=v end
+    for _,c in ipairs(kids or {}) do c.Parent=o end
+    return o
+end
+
+-- ===== Root GUI =====
+local gui = Instance.new("ScreenGui")
+gui.Name = "UFOX_AFK_Toggle"
+softParent(gui)
+
+local card = make("Frame", {
+    Parent=gui, Size=UDim2.fromOffset(150, 60),
+    AnchorPoint=Vector2.new(1,1), Position=POS,
+    BackgroundColor3=BG_BOX, BorderSizePixel=0
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,12)}),
+    make("UIStroke",{Color=Color3.fromRGB(60,60,60), Transparency=0.5}),
+})
+
+local title = make("TextLabel",{
+    Parent=card, BackgroundTransparency=1,
+    Position=UDim2.new(0,12,0,8), Size=UDim2.new(1,-24,0,22),
+    Font=Enum.Font.GothamBold, TextSize=16, Text="AFK: OFF",
+    TextColor3=FG_TEXT, TextXAlignment=Enum.TextXAlignment.Left
+},{})
+
+-- สวิตช์
+local switch = make("TextButton",{
+    Parent=card, AutoButtonColor=false,
+    Position=UDim2.new(0,12,0,32), Size=UDim2.fromOffset(126, 20),
+    BackgroundColor3=Color3.fromRGB(36,36,36), Text=""
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,10)})
+})
+local knob = make("Frame",{
+    Parent=switch, BackgroundColor3=ACCENT_OFF,
+    Size=UDim2.fromOffset(56, 20), Position=UDim2.new(0,0,0,0)
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,10)}),
+})
+
+-- ===== AFK Engine =====
+local enabled = false
+local loopThread = nil
+local idleConn   = nil
+
+local function simulateClick()
+    -- แตะหน้าจอเบา ๆ เพื่อกันหลุด idle
+    pcall(function()
+        VirtualUser:Button1Down(Vector2.new(0,0))
+        task.wait(0.05)
+        VirtualUser:Button1Up(Vector2.new(0,0))
+    end)
+end
+
+local function startAFK()
+    if enabled then return end
+    enabled = true
+    -- สี/สถานะ UI
+    title.Text = "AFK: ON"
+    TS:Create(knob, TweenInfo.new(0.12), {BackgroundColor3=ACCENT_ON, Position=UDim2.new(1,-56,0,0)}):Play()
+
+    -- กัน Roblox Idle เด้งเอง (สำรอง)
+    idleConn = LP.Idled:Connect(function()
+        simulateClick()
+    end)
+
+    -- ลูปทุก INTERVAL_SEC
+    loopThread = task.spawn(function()
+        while enabled do
+            task.wait(INTERVAL_SEC)
+            if not enabled then break end
+            simulateClick()
+        end
+    end)
+end
+
+local function stopAFK()
+    if not enabled then return end
+    enabled = false
+    title.Text = "AFK: OFF"
+    TS:Create(knob, TweenInfo.new(0.12), {BackgroundColor3=ACCENT_OFF, Position=UDim2.new(0,0,0,0)}):Play()
+    if idleConn then idleConn:Disconnect(); idleConn=nil end
+    -- ไม่ต้อง kill thread แรง ๆ ปล่อยหลุดจาก while ได้เอง
+end
+
+-- สลับสวิตช์
+switch.MouseButton1Click:Connect(function()
+    if enabled then stopAFK() else startAFK() end
+end)
+
+-- ===== Public API (ถ้าจะเรียกจากสคริปต์อื่น) =====
+_G.UFOX_AFK = {
+    Enable  = startAFK,
+    Disable = stopAFK,
+    Toggle  = function() if enabled then stopAFK() else startAFK() end end,
+    IsOn    = function() return enabled end,
+    SetInterval = function(sec) INTERVAL_SEC = math.max(5, tonumber(sec) or INTERVAL_SEC) end,
+    SetPosition = function(udim2) if typeof(udim2)=="UDim2" then card.Position = udim2 end end
+}
