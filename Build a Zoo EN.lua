@@ -567,13 +567,12 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-EGG / GACHA (uses ResourceRE:FireServer({"PULL","FX/FX_EvolveStart"}))
--- วางบล็อคนี้ในไฟล์ UI เดิมได้เลย (มีตัวแปร make, TS, ACCENT, SUB, FG, content)
+-- 🥚 AUTO-EGG / GACHA (เปิดไข่เรื่อย ๆ อัตโนมัติ)
 ----------------------------------------------------------------
 local RS = game:GetService("ReplicatedStorage")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- หาตำแหน่ง Y วางถัดจากแถวสุดท้ายใน content
+-- หา Y ถัดจากแถวล่าสุด
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -586,7 +585,7 @@ local function nextRowY(pad)
     return y
 end
 
--- ลบของเก่า (กันซ้ำ)
+-- ลบเก่า
 local old = content:FindFirstChild("RowAutoEgg")
 if old then old:Destroy() end
 
@@ -596,7 +595,7 @@ row.Name = "RowAutoEgg"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, nextRowY(8))
+row.Position = UDim2.fromOffset(10,nextRowY(8))
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
@@ -612,9 +611,8 @@ lb.Text = "Auto-Egg (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24
+-- สวิตช์
 local sw = Instance.new("TextButton")
-sw.Name = "Switch"
 sw.Parent = row
 sw.AutoButtonColor = false
 sw.Text = ""
@@ -633,82 +631,52 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
--- แถบเตือนถ้าไม่พบ Remote
-local warnBar = Instance.new("TextLabel")
-warnBar.Parent = row
-warnBar.BackgroundColor3 = Color3.fromRGB(60,48,0)
-warnBar.TextColor3 = Color3.fromRGB(255,235,120)
-warnBar.Font = Enum.Font.GothamBold
-warnBar.TextSize = 13
-warnBar.Text = "ReplicatedStorage.Remote.ResourceRE not found"
-warnBar.Visible = false
-warnBar.Size = UDim2.new(1,-24,0,20)
-warnBar.Position = UDim2.new(0,12,1,-24)
-warnBar.TextXAlignment = Enum.TextXAlignment.Center
-Instance.new("UICorner", warnBar).CornerRadius = UDim.new(0,6)
-
--- ===== Engine =====
+-- Engine
 local ON = false
-local INTERVAL = 0.75  -- วิ. ระหว่างเปิด 1 ครั้ง (ปรับได้: เร็ว/ช้า)
+local INTERVAL = 1.0 -- ทุก 1 วินาที ยิง 1 ครั้ง (ปรับได้)
 local loop
 local ResourceRE
 
--- ค้นหา Remote แบบยืดหยุ่น: ReplicatedStorage.Remote.ResourceRE
-local function resolveRemote(timeout)
-    timeout = timeout or 3
-    local t0 = os.clock()
-    local remoteFolder = RS:FindFirstChild("Remote")
-    while not remoteFolder and (os.clock() - t0) < timeout do
-        task.wait(0.1)
-        remoteFolder = RS:FindFirstChild("Remote")
-    end
-    if not remoteFolder then return nil end
-    local re = remoteFolder:FindFirstChild("ResourceRE")
-    t0 = os.clock()
-    while not re and (os.clock() - t0) < timeout do
-        task.wait(0.1)
-        re = remoteFolder:FindFirstChild("ResourceRE")
-    end
-    return re
-end
-
--- UI state
 local function setUI(state)
     if state then
         lb.Text = "Auto-Egg (ON)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3=Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob,TweenFast,{Position=UDim2.new(1,-22,0,2),BackgroundColor3=ACCENT}):Play()
     else
         lb.Text = "Auto-Egg (OFF)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3=SUB}):Play()
+        TS:Create(knob,TweenFast,{Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
 end
 
--- ยิงเปิดไข่
-local ARGS = {"PULL","FX/FX_EvolveStart"} -- <- ตามที่ให้มา
+-- ยิง Remote + กดปุ่ม Hatch ถ้ามี
 local function fireOnce()
     if not ResourceRE then return end
     pcall(function()
-        ResourceRE:FireServer(unpack(ARGS))
+        ResourceRE:FireServer("PULL","FX/FX_EvolveStart")
     end)
+    -- กดปุ่ม Hatch UI ถ้ามี
+    local gui = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if gui then
+        local hatchBtn = gui:FindFirstChild("Hatch",true) -- หา object ที่ชื่อ Hatch
+        if hatchBtn and hatchBtn:IsA("TextButton") then
+            pcall(function() hatchBtn:Activate() end)
+        end
+    end
 end
 
 local function startLoop()
     if ON then return end
-    ResourceRE = resolveRemote(3)
+    ResourceRE = RS:WaitForChild("Remote"):WaitForChild("ResourceRE",5)
     if not ResourceRE then
-        warnBar.Text = "Remote 'ResourceRE' missing"
-        warnBar.Visible = true
+        lb.Text = "Auto-Egg (Remote not found)"
         return
     end
-    warnBar.Visible = false
     ON = true
     loop = task.spawn(function()
-        -- ลูปเปิดทั้งหมดเท่าที่เปิดได้: เราจะยิงเรื่อย ๆ ทุก INTERVAL
         while ON do
             fireOnce()
-            for i=1, math.floor(INTERVAL*10) do
+            for i=1,INTERVAL*10 do
                 if not ON then break end
                 task.wait(0.1)
             end
@@ -718,7 +686,7 @@ local function startLoop()
 end
 
 local function stopLoop()
-    ON = false
+    ON=false
     setUI(false)
 end
 
@@ -726,10 +694,9 @@ sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
 
--- ให้สคริปต์อื่นเรียกใช้ได้
+-- ให้สคริปต์อื่นเรียกได้
 _G.UFO_EGG_Start = startLoop
 _G.UFO_EGG_Stop  = stopLoop
-_G.UFO_EGG_Set   = function(b) if b then startLoop() else stopLoop() end end
 
 -- เริ่มต้นปิด
 setUI(false)
