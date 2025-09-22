@@ -206,17 +206,17 @@ UIS.InputBegan:Connect(function(i,gp)
 end)
 
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (look like real button with hover/press)
+-- 🏠 HOME BUTTON (with strong green border)
 ----------------------------------------------------------------
 if btnHome then btnHome:Destroy() end
 local btnHome = make("TextButton",{
     Parent=left, AutoButtonColor=false,
-    Size=UDim2.new(1,-16,0,36), Position=UDim2.fromOffset(8,8),
+    Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,8),
     BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
     Text="", ClipsDescendants=true
 },{
     make("UICorner",{CornerRadius=UDim.new(0,10)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.5})
+    make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0}) -- ขอบเขียวเข้ม ชัดเจน
 })
 
 -- ไอคอน + ข้อความ
@@ -247,7 +247,6 @@ btnHome.MouseButton1Click:Connect(function()
     if typeof(_G.UFO_OpenHomePage)=="function" then
         pcall(_G.UFO_OpenHomePage)
     else
-        -- กรณีไม่มีฟังก์ชันให้เปิดหน้า
         TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
         task.delay(0.15, function()
             TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
