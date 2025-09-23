@@ -567,8 +567,9 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-HATCH (เปิดได้ทีละหลายฟอง) + แก้บั๊กสวิตช์
--- โหมดทำงาน: เปิด 2 วินาที (ยิงกวาดทุกฟอง) -> พัก 2 วินาที -> วน
+-- 🥚 AUTO-HATCH (force press like a finger) + fix one-egg bug
+-- ทำงาน: เปิด 2 วิ (กวาดกด Hatch ทุกฟอง) -> พัก 2 วิ -> วน
+-- ใช้ fireproximityprompt ถ้ามี; fallback ยิง RF:InvokeServer("Hatch")
 ----------------------------------------------------------------
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
@@ -586,10 +587,9 @@ local function nextRowY(pad)
 end
 
 -- ลบของเก่า (กันซ้ำ)
-local old = content:FindFirstChild("RowAutoHatch")
-if old then old:Destroy() end
+do local old = content:FindFirstChild("RowAutoHatch"); if old then old:Destroy() end end
 
--- กล่องแถว
+-- กล่องแถว + UI
 local row = Instance.new("Frame")
 row.Name = "RowAutoHatch"
 row.Parent = content
@@ -599,7 +599,6 @@ row.Position = UDim2.fromOffset(10, nextRowY(8))
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
--- ป้ายชื่อ
 local lb = Instance.new("TextLabel")
 lb.Parent = row
 lb.BackgroundTransparency = 1
@@ -611,7 +610,6 @@ lb.Text = "Auto-Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก
 local sw = Instance.new("TextButton")
 sw.Parent = row
 sw.AutoButtonColor = false
@@ -635,55 +633,71 @@ Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 -- Engine
 ----------------------------------------------------------------
 local ON = false
-local loopThread = nil
+local runToken = 0  -- เพิ่ม token กันลูปค้าง/ซ้อน
 
--- เรียก Hatch ทีละ “หลายฟอง” ในรอบเดียว
-local function tryHatchAll()
-    local hit = 0
+local hasFire = (typeof(fireproximityprompt)=="function")
 
-    -- 1) ถ้าเกมให้ฟังก์ชันลัดไว้ เรียกก่อน (บางด่านพออันนี้ติด ทุกฟองจะโดน)
-    if type(shared.LocalQucikHatch) == "function" then
-        local ok = pcall(shared.LocalQucikHatch)
-        if ok then
-            hit += 1
-            task.wait(0.05)
-        end
+-- utility: พยายาม “กด” ProximityPrompt ให้เหมือนนิ้วกด
+local function pressPrompt(pp)
+    if not pp or not pp:IsA("ProximityPrompt") then return false end
+    -- ปรับระยะ/สายตาให้กดได้จากไกล (local เท่านั้น)
+    pcall(function()
+        pp.RequiresLineOfSight = false
+        pp.MaxActivationDistance = math.max(pp.MaxActivationDistance or 0, 1e6)
+        pp.HoldDuration = math.min(pp.HoldDuration or 0.1, 0.2)
+    end)
+
+    if hasFire then
+        local ok = pcall(function() fireproximityprompt(pp, 0.2) end)
+        if ok then return true end
     end
 
-    -- 2) ถ้าเกมเซ็ต prox ตัวที่เราโฟกัสอยู่ไว้ → ยิง RF ของตัวนั้น
-    if shared.LocalHatchProximity and typeof(shared.LocalHatchProximity)=="Instance" then
-        local prompt = shared.LocalHatchProximity
-        local tgt = prompt.Parent
-        local rf = tgt and tgt:FindFirstChild("RF")
-        if rf and rf:IsA("RemoteFunction") then
-            local ok = pcall(function() rf:InvokeServer("Hatch") end)
-            if ok then
-                hit += 1
+    -- fallback: ยิง RF ของ object นั้นโดยตรง (ถ้ามี)
+    local tgt = pp.Parent
+    local rf = tgt and tgt:FindFirstChild("RF")
+    if rf and rf:IsA("RemoteFunction") then
+        local ok = pcall(function() rf:InvokeServer("Hatch") end)
+        if ok then return true end
+    end
+    return false
+end
+
+-- กวาดทุกฟองที่ “พร้อม Hatch”:
+-- 1) ใช้ shared.LocalHatchProximity ก่อน (ถ้ามี)
+-- 2) แล้วสแกน workspace หา ProximityPrompt ที่ Enabled และ ActionText ดูคล้าย "Hatch"
+local function tryHatchAllOnce()
+    local fired = 0
+
+    -- (A) ตัวที่ UI โฟกัสอยู่
+    if shared.LocalHatchProximity and shared.LocalHatchProximity:IsA("ProximityPrompt") then
+        if shared.LocalHatchProximity.Enabled ~= false then
+            if pressPrompt(shared.LocalHatchProximity) then
+                fired += 1
                 task.wait(0.05)
             end
         end
     end
 
-    -- 3) กวาดทั้งแมพ: ทุก ProximityPrompt ที่มีลูกชื่อ RF → ยิง Hatch
-    --    (ครอบคลุมกรณีมีหลายไข่ขึ้นพร้อมกัน)
+    -- (B) กวาดทั้งแมพ
     for _,pp in ipairs(workspace:GetDescendants()) do
         if not ON then break end
         if pp:IsA("ProximityPrompt") and (pp.Enabled ~= false) then
-            local tgt = pp.Parent
-            if tgt then
-                local rf = tgt:FindFirstChild("RF")
-                if rf and rf:IsA("RemoteFunction") then
-                    local ok = pcall(function() rf:InvokeServer("Hatch") end)
-                    if ok then
-                        hit += 1
-                        task.wait(0.05) -- เว้นจังหวะกัน spam
+            -- เลี่ยง “Skip Wait” ด้วยการกรองข้อความให้มีคำว่า Hatch (บางเกมแปลภาษา → ใส่เงื่อนไขกว้าง)
+            local at = tostring(pp.ActionText or ""):lower()
+            if at:find("hatch") or at:find("孵化") or at:find("ไข่") or at=="" then
+                -- ถ้ามี RF อยู่ใต้วัตถุ ถือว่าใช่จุดไข่
+                local isEgg = (pp.Parent and pp.Parent:FindFirstChild("RF") ~= nil)
+                if isEgg then
+                    if pressPrompt(pp) then
+                        fired += 1
+                        task.wait(0.05)
                     end
                 end
             end
         end
     end
 
-    return hit
+    return fired
 end
 
 local function setUI(state)
@@ -699,36 +713,36 @@ local function setUI(state)
 end
 
 local function startLoop()
-    if loopThread then return end         -- กันซ้อน
+    if ON then return end
     ON = true
     setUI(true)
+    runToken += 1
+    local myToken = runToken
 
-    loopThread = task.spawn(function()
-        while ON do
-            -- เปิด 2 วินาที: ยิงกวาดทุก 0.2 วิ (จับ UI Prompt ที่เพิ่งเปิดใหม่)
+    task.spawn(function()
+        while ON and myToken == runToken do
+            -- เปิด 2 วิ: ยิงกวาดทุก 0.2 วิ
             local t0 = os.clock()
-            while ON and (os.clock()-t0) < 2 do
-                tryHatchAll()
+            while ON and myToken == runToken and (os.clock()-t0) < 2 do
+                tryHatchAllOnce()
                 task.wait(0.2)
             end
-            -- พัก 2 วินาที
+            -- พัก 2 วิ
             local t1 = os.clock()
-            while ON and (os.clock()-t1) < 2 do
+            while ON and myToken == runToken and (os.clock()-t1) < 2 do
                 task.wait(0.1)
             end
         end
-        loopThread = nil
     end)
 end
 
 local function stopLoop()
     if not ON then return end
     ON = false
+    runToken += 1  -- ยกเลิกลูปรอบเก่าแน่นอน
     setUI(false)
-    -- ปล่อยให้ loopThread หลุดเองแล้วเคลียร์เป็น nil ในฟังก์ชัน
 end
 
--- bind ปุ่ม
 sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
@@ -739,5 +753,4 @@ _G.UFO_HATCH_Start = startLoop
 _G.UFO_HATCH_Stop  = stopLoop
 _G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
 
--- เริ่มต้นปิด
 setUI(false)
