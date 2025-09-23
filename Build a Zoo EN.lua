@@ -567,54 +567,56 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-EGG (เปิดไข่อัตโนมัติ ด้วย ResourceRE:FireServer)
+-- 🥚 AUTO-HATCH (กดปุ่ม Hatch UI จริง ๆ ทุก INTERVAL)
 ----------------------------------------------------------------
-local RS = game:GetService("ReplicatedStorage")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local INTERVAL = 1.5  -- ทุกกี่วินาทีให้กด 1 ครั้ง (ปรับได้)
 
--- หาตำแหน่ง Y วางต่อจากแถวสุดท้าย
-local function nextRowY(pad)
-    pad = pad or 8
-    local y = 10
-    for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") and c.Visible and c.AbsoluteSize.Y > 0 then
-            local yo = c.Position.Y.Offset + c.Size.Y.Offset
-            if yo + pad > y then y = yo + pad end
+-- ฟังก์ชันหา instance จาก getnilinstances (พิเศษ กรณี UI อยู่ใน CoreGui)
+local function getNil(name,class)
+    for _,v in next, getnilinstances() do
+        if v.ClassName==class and v.Name==name then
+            return v
         end
     end
-    return y
 end
 
--- ลบเก่ากันซ้ำ
-local old = content:FindFirstChild("RowAutoEgg")
-if old then old:Destroy() end
+-- หาปุ่ม Hatch
+local function findHatchBtn()
+    -- ปุ่มอาจอยู่ใน PlayerGui หรือ CoreGui
+    local pg = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        local btn = pg:FindFirstChild("Hatch", true) -- หาแบบ recursive
+        if btn and btn:IsA("ImageButton") or btn:IsA("TextButton") then
+            return btn
+        end
+    end
+    -- ลองหาใน nil instance ด้วย
+    local nilBtn = getNil("Hatch","ImageButton") or getNil("Hatch","TextButton")
+    return nilBtn
+end
 
--- กล่องแถว
+-- UI row
 local row = Instance.new("Frame")
-row.Name = "RowAutoEgg"
+row.Name = "RowAutoHatch"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, nextRowY(8))
+row.Position = UDim2.fromOffset(10, 120)
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
--- ป้ายชื่อ
-local lb = Instance.new("TextLabel")
-lb.Parent = row
+local lb = Instance.new("TextLabel", row)
 lb.BackgroundTransparency = 1
 lb.Font = Enum.Font.GothamBold
 lb.TextSize = 15
 lb.TextXAlignment = Enum.TextXAlignment.Left
 lb.TextColor3 = FG
-lb.Text = "Auto-Egg (OFF)"
+lb.Text = "Auto-Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก
-local sw = Instance.new("TextButton")
-sw.Name = "Switch"
-sw.Parent = row
+local sw = Instance.new("TextButton", row)
 sw.AutoButtonColor = false
 sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
@@ -624,8 +626,7 @@ sw.BackgroundColor3 = SUB
 Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
 local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
 
-local knob = Instance.new("Frame")
-knob.Parent = sw
+local knob = Instance.new("Frame", sw)
 knob.Size = UDim2.fromOffset(20,20)
 knob.Position = UDim2.new(0,2,0,2)
 knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
@@ -633,51 +634,44 @@ knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
 -- Engine
-local ON = false
-local INTERVAL = 1.0 -- วินาทีต่อการ Hatch 1 ครั้ง
+local ON=false
 local loop
-local ResourceRE
 
 local function setUI(state)
     if state then
-        lb.Text = "Auto-Egg (ON)"
+        lb.Text = "Auto-Hatch (ON)"
         TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
         TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
     else
-        lb.Text = "Auto-Egg (OFF)"
+        lb.Text = "Auto-Hatch (OFF)"
         TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2),  BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
 end
 
-local function fireOnce()
-    if not ResourceRE then return end
-    local args = {"PULL","FX/FX_born"}
-    pcall(function()
-        ResourceRE:FireServer(unpack(args))
-    end)
+local function pressHatch()
+    local btn = findHatchBtn()
+    if btn then
+        pcall(function()
+            btn:Activate() -- จำลองกดปุ่ม
+        end)
+    end
 end
 
 local function startLoop()
     if ON then return end
-    ResourceRE = RS:WaitForChild("Remote"):WaitForChild("ResourceRE",3)
-    if not ResourceRE then return end
-    ON = true
+    ON=true
     loop = task.spawn(function()
         while ON do
-            fireOnce()
-            for i=1, math.floor(INTERVAL*10) do
-                if not ON then break end
-                task.wait(0.1)
-            end
+            pressHatch()
+            task.wait(INTERVAL)
         end
-        loop = nil
     end)
     setUI(true)
 end
 
 local function stopLoop()
-    ON = false
+    ON=false
     setUI(false)
 end
 
@@ -685,10 +679,5 @@ sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
 
--- API สาธารณะ
-_G.UFO_EGG_Start = startLoop
-_G.UFO_EGG_Stop  = stopLoop
-_G.UFO_EGG_Set   = function(b) if b then startLoop() else stopLoop() end end
-
--- เริ่มต้น OFF
+-- init
 setUI(false)
