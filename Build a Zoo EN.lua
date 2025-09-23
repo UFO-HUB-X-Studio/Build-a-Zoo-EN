@@ -567,41 +567,64 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-HATCH (เปิดไข่อัตโนมัติด้วย RemoteFunction:InvokeServer("Hatch"))
--- ต้องมีตัวแปรจาก UI เดิม: make, TS, ACCENT, SUB, FG, content
+-- 🥚 AUTO-HATCH (เจาะจงชื่อไข่ เช่น Super Rare Egg, Epic Egg)
 ----------------------------------------------------------------
 local Players = game:GetService("Players")
 local LP      = Players.LocalPlayer
+local TS      = game:GetService("TweenService")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- วางต่อท้ายรายการแถวเดิมแบบอัตโนมัติ
-local function nextRowY(pad)
-    pad = pad or 8
-    local y = 10
-    for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") and c.Visible and c.AbsoluteSize.Y > 0 then
-            local yo = c.Position.Y.Offset + c.Size.Y.Offset
-            if yo + pad > y then y = yo + pad end
+-- === ตั้งชื่อไข่ที่ต้องการให้ Auto Hatch ===
+local EggNames = {
+    "Super Rare Egg",
+    "Epic Egg",
+}
+
+-- Utility: หา Hatch UI หรือ Instance ที่เกี่ยวกับไข่
+local function findEggTargets()
+    local targets = {}
+
+    -- 1) ใน PlayerGui
+    local pg = LP:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        for _,v in ipairs(pg:GetDescendants()) do
+            if v:IsA("GuiButton") and (v.Text and string.find(v.Text,"Hatch")) then
+                table.insert(targets, v)
+            elseif v:IsA("GuiObject") and table.find(EggNames, v.Name) then
+                table.insert(targets, v)
+            end
         end
     end
-    return y
+
+    -- 2) ใน Workspace (กรณีไข่อยู่ในโลก 3D)
+    for _,name in ipairs(EggNames) do
+        local eg = workspace:FindFirstChild(name, true)
+        if eg then
+            table.insert(targets, eg)
+        end
+    end
+
+    return targets
 end
 
--- ลบของเก่า (กันซ้ำ)
-local old = content:FindFirstChild("RowAutoHatch")
-if old then old:Destroy() end
+-- สร้าง RemoteFunction แบบที่คุณใช้
+local function hatchOnce()
+    pcall(function()
+        local rf = Instance.new("RemoteFunction") -- parent=nil
+        rf:InvokeServer("Hatch")
+    end)
+end
 
--- กล่องแถว + เส้นขอบเขียวชัด
+-- ============ UI Switch ==============
 local row = Instance.new("Frame")
 row.Name = "RowAutoHatch"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, nextRowY(8))
+row.Position = UDim2.fromOffset(10, 120) -- วางต่อจากแถวก่อนหน้า
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
--- ป้ายชื่อ
 local lb = Instance.new("TextLabel")
 lb.Parent = row
 lb.BackgroundTransparency = 1
@@ -613,16 +636,14 @@ lb.Text = "Auto-Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24 (สไตล์เดียวกับ AFK)
 local sw = Instance.new("TextButton")
-sw.Name = "Switch"
 sw.Parent = row
-sw.AutoButtonColor = false
-sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
 sw.Position = UDim2.new(1,-12,0.5,0)
 sw.Size = UDim2.fromOffset(60,24)
 sw.BackgroundColor3 = SUB
+sw.Text = ""
+sw.AutoButtonColor = false
 Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
 local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
 
@@ -634,44 +655,21 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
-----------------------------------------------------------------
--- Engine
-----------------------------------------------------------------
+-- ============ Engine ============
 local ON = false
-local INTERVAL = 0.75   -- วินาทีระหว่างกด (ปรับได้ตามต้องการ)
-local BURST    = 3      -- ยิงซ้ำต่อเนื่องกี่ครั้ง/รอบ กันดีเลย์ฝั่งเกม
-
--- กด Hatch แบบที่คุณให้มา (สร้าง RemoteFunction parent=nil แล้ว InvokeServer("Hatch"))
-local function hatchOnce()
-    pcall(function()
-        local rf = Instance.new("RemoteFunction")  -- parent = nil
-        rf:InvokeServer("Hatch")
-    end)
-end
-
--- (เสริม) ถ้าอยากกดเฉพาะตอน UI Hatch โผล่จริง ๆ ลองตรวจใน PlayerGui
-local function hatchUiVisible()
-    local pg = LP:FindFirstChildOfClass("PlayerGui")
-    if not pg then return true end  -- หาไม่ได้ก็กดไปเลย
-    local ui = pg:FindFirstChild("Hatch", true)
-    if ui and ui:IsA("GuiObject") then
-        local ok = true
-        pcall(function() ok = ui.Visible end)
-        return ok ~= false
-    end
-    return true
-end
-
+local INTERVAL = 1
+local BURST    = 3
 local loop
+
 local function setUI(state)
     if state then
         lb.Text = "Auto-Hatch (ON)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob,TweenFast,{Position=UDim2.new(1,-22,0,2),BackgroundColor3=ACCENT}):Play()
     else
         lb.Text = "Auto-Hatch (OFF)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3 = SUB}):Play()
+        TS:Create(knob,TweenFast,{Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
 end
 
@@ -680,10 +678,13 @@ local function startLoop()
     ON = true
     loop = task.spawn(function()
         while ON do
-            if hatchUiVisible() then
-                for i=1,BURST do
-                    hatchOnce()
-                    task.wait(0.05)
+            local eggs = findEggTargets()
+            if #eggs > 0 then
+                for _,eg in ipairs(eggs) do
+                    for i=1,BURST do
+                        hatchOnce()
+                        task.wait(0.05)
+                    end
                 end
             end
             task.wait(INTERVAL)
@@ -693,7 +694,7 @@ local function startLoop()
 end
 
 local function stopLoop()
-    ON = false
+    ON=false
     setUI(false)
 end
 
@@ -701,10 +702,4 @@ sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
 
--- ให้สคริปต์อื่นเรียกใช้ได้
-_G.UFO_HATCH_Start = startLoop
-_G.UFO_HATCH_Stop  = stopLoop
-_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
-
--- เริ่มต้นปิด
 setUI(false)
