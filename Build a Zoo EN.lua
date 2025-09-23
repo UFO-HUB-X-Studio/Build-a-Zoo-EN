@@ -228,21 +228,18 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (fix position & clear green border)
--- วางแทนบล็อคปุ่ม Home เดิมได้เลย
+-- 🏠 HOME BUTTON (fix left + down)
 ----------------------------------------------------------------
 do
     local old = left:FindFirstChild("UFOX_HomeBtn")
     if old then old:Destroy() end
 
-    -- ขยับจากขอบซ้าย 16px และลง 20px
-    -- กว้าง = เต็มความกว้าง - 32px (เผื่อซ้าย16 + ขวา16)
     local btnHome = Instance.new("TextButton")
     btnHome.Name = "UFOX_HomeBtn"
     btnHome.Parent = left
     btnHome.AutoButtonColor = false
-    btnHome.Size = UDim2.new(1, -32, 0, 38)   -- กว้างพอดีในกรอบ
-    btnHome.Position = UDim2.fromOffset(16, 20)
+    btnHome.Size = UDim2.new(1, -16, 0, 38)   -- กว้างพอดี
+    btnHome.Position = UDim2.fromOffset(4, 40) -- 👈 ซ้าย 4px / ลง 40px
     btnHome.BackgroundColor3 = SUB
     btnHome.Font = Enum.Font.GothamBold
     btnHome.TextSize = 15
@@ -250,8 +247,7 @@ do
     btnHome.Text = ""
     btnHome.ClipsDescendants = true
 
-    local corner = Instance.new("UICorner", btnHome)
-    corner.CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", btnHome).CornerRadius = UDim.new(0, 10)
 
     local stroke = Instance.new("UIStroke", btnHome)
     stroke.Color = ACCENT
@@ -259,7 +255,6 @@ do
     stroke.Transparency = 0
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    -- แถวไอคอน + ข้อความ
     local row = Instance.new("Frame")
     row.BackgroundTransparency = 1
     row.Parent = btnHome
@@ -291,7 +286,6 @@ do
     lab.TextXAlignment = Enum.TextXAlignment.Left
     lab.TextColor3 = FG
 
-    -- เอฟเฟกต์โฮเวอร์
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -299,7 +293,6 @@ do
         TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
     end)
 
-    -- การคลิก
     btnHome.MouseButton1Click:Connect(function()
         if typeof(_G.UFO_OpenHomePage) == "function" then
             pcall(_G.UFO_OpenHomePage)
