@@ -567,20 +567,22 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO HATCH (ทนบัค, รีเซ็ตเองถ้าไม่ติด)
+-- 🥚 AUTO HATCH (toggle loop 2s ON / 2s OFF)
 ----------------------------------------------------------------
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- UI row (ลบของเก่า)
+-- ลบของเก่า
 local old = content:FindFirstChild("RowAutoHatch")
 if old then old:Destroy() end
+
+-- UI row
 local row = Instance.new("Frame", content)
 row.Name = "RowAutoHatch"
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, 200) -- ตำแหน่งปรับเอง
+row.Position = UDim2.fromOffset(10, 200) -- ปรับตำแหน่งตามต้องการ
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 Instance.new("UIStroke", row).Color = ACCENT
 
@@ -612,11 +614,8 @@ Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 ----------------------------------------------------------------
 -- Engine
 ----------------------------------------------------------------
-local ON=false
-local INTERVAL=0.75
-local BURST=2
+local RUNNING=false
 local loop
-local failCount=0
 
 local function setUI(state)
     if state then
@@ -630,30 +629,13 @@ local function setUI(state)
     end
 end
 
--- ยิง hatch โดยเลือก method ที่หาได้
-local function tryHatchOnce()
+-- ยิง Hatch ครั้งเดียว (ลองทั้ง shared และ RF)
+local function fireHatchOnce()
     local ok=false
-    -- 1. ฟังก์ชันของเกม
     local f=rawget(shared,"LocalQucikHatch")
     if type(f)=="function" then
-        for i=1,BURST do
-            ok=pcall(f) or ok
-            task.wait(0.05)
-        end
+        ok=pcall(f) or ok
     end
-    -- 2. proxprompt
-    if not ok then
-        local p=rawget(shared,"LocalHatchProximity")
-        if p and p:IsA("ProximityPrompt") and p.Enabled then
-            if typeof(fireproximityprompt)=="function" then
-                for i=1,BURST do
-                    ok=pcall(fireproximityprompt,p) or ok
-                    task.wait(0.05)
-                end
-            end
-        end
-    end
-    -- 3. RF ตรง
     if not ok then
         for _,desc in ipairs(workspace:GetDescendants()) do
             if desc:GetAttribute("EggType") and desc:FindFirstChild("RF") then
@@ -665,37 +647,31 @@ local function tryHatchOnce()
 end
 
 local function startLoop()
-    if ON then return end
-    ON=true
-    failCount=0
+    if RUNNING then return end
+    RUNNING=true
     loop=task.spawn(function()
-        while ON do
-            local ok=tryHatchOnce()
-            if ok then
-                failCount=0
-            else
-                failCount=failCount+1
-                if failCount>=10 then
-                    -- reset auto เอง ป้องกันค้าง
-                    ON=false
-                    setUI(false)
-                    warn("[UFOHUBX] AutoHatch stopped (no success after 10 tries)")
-                    break
-                end
+        while RUNNING do
+            -- ON phase
+            setUI(true)
+            local t0=os.clock()
+            while RUNNING and os.clock()-t0<2 do
+                fireHatchOnce()
+                task.wait(0.5)
             end
-            task.wait(INTERVAL)
+            -- OFF phase
+            setUI(false)
+            task.wait(2)
         end
     end)
-    setUI(true)
 end
 
 local function stopLoop()
-    ON=false
+    RUNNING=false
     setUI(false)
 end
 
 sw.MouseButton1Click:Connect(function()
-    if ON then stopLoop() else startLoop() end
+    if RUNNING then stopLoop() else startLoop() end
 end)
 
 _G.UFO_HATCH_Start=startLoop
