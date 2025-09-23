@@ -567,17 +567,16 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-HATCH (toggle switch, auto on/off every 2s)
+-- 🥚 AUTO-HATCH (เปิด 2 วิ / ปิด 2 วิ) — ใช้ shared.LocalQucikHatch / RF จริงของเกม
 ----------------------------------------------------------------
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local RS = game:GetService("ReplicatedStorage")
 
--- หาตำแหน่งวางแถวถัดไป
+-- หา Y วางแถวถัดไปใน content
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
     for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") then
+        if c:IsA("Frame") and c.Visible and c.AbsoluteSize.Y > 0 then
             local yo = c.Position.Y.Offset + c.Size.Y.Offset
             if yo + pad > y then y = yo + pad end
         end
@@ -585,7 +584,7 @@ local function nextRowY(pad)
     return y
 end
 
--- ลบของเก่ากันซ้ำ
+-- ลบของเก่า (กันซ้ำ)
 local old = content:FindFirstChild("RowAutoHatch")
 if old then old:Destroy() end
 
@@ -631,18 +630,46 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
+----------------------------------------------------------------
 -- Engine
+----------------------------------------------------------------
 local ON = false
 local loop
 
-local function fireHatch()
-    pcall(function()
-        local remote = Instance.new("RemoteFunction")
-        remote.Name = "TempRF"
-        remote.Parent = nil
-        remote:InvokeServer("Hatch")
-        remote:Destroy()
-    end)
+-- ยิง Hatch แบบ “ของจริง” ตามสคริปต์เกม
+local function tryHatchOnce()
+    -- 1) ถ้ามีฟังก์ชันลัดจากเกม เรียกเลย
+    if type(shared.LocalQucikHatch) == "function" then
+        local ok = pcall(shared.LocalQucikHatch)
+        if ok then return true end
+    end
+
+    -- 2) ถ้ามี ProximityPrompt ที่เกมตั้งให้เราไว้ ลอง invoke ผ่าน RF ของมัน
+    if shared.LocalHatchProximity and typeof(shared.LocalHatchProximity)=="Instance" then
+        local prompt = shared.LocalHatchProximity
+        local target = prompt.Parent
+        if target then
+            local rf = target:FindFirstChild("RF")
+            if rf and rf:IsA("RemoteFunction") then
+                local ok = pcall(function() rf:InvokeServer("Hatch") end)
+                if ok then return true end
+            end
+        end
+    end
+
+    -- 3) สำรองสุดท้าย: เดินสำรวจ ProximityPrompt ทั้งเกม หาอันที่มี RF ลูก
+    -- (กันเคส shared.* ไม่ถูกเซ็ตด้วยเหตุผลบางอย่าง)
+    for _,pp in ipairs(workspace:GetDescendants()) do
+        if pp:IsA("ProximityPrompt") then
+            local tgt = pp.Parent
+            if tgt and tgt:FindFirstChild("RF") and tgt.RF:IsA("RemoteFunction") then
+                local ok = pcall(function() tgt.RF:InvokeServer("Hatch") end)
+                if ok then return true end
+            end
+        end
+    end
+
+    return false
 end
 
 local function setUI(state)
@@ -653,7 +680,7 @@ local function setUI(state)
     else
         lb.Text = "Auto-Hatch (OFF)"
         TS:Create(sw, TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
     end
 end
 
@@ -662,19 +689,19 @@ local function startLoop()
     ON = true
     loop = task.spawn(function()
         while ON do
-            -- เปิด 2 วิ
+            -- เปิด 2 วิ: พยายามยิง hatch ทุก 0.25 วิ (เพื่อจับจังหวะที่ Prompt เปิด)
             local t0 = os.clock()
-            while (os.clock()-t0) < 2 and ON do
-                fireHatch()
-                task.wait(0.5)
+            while ON and (os.clock()-t0) < 2 do
+                tryHatchOnce()
+                task.wait(0.25)
             end
             -- ปิด 2 วิ
             local t1 = os.clock()
-            while (os.clock()-t1) < 2 and ON do
-                task.wait(0.5)
+            while ON and (os.clock()-t1) < 2 do
+                task.wait(0.25)
             end
         end
-        loop=nil
+        loop = nil
     end)
     setUI(true)
 end
@@ -690,3 +717,8 @@ end)
 
 -- เริ่มต้นปิด
 setUI(false)
+
+-- ให้สคริปต์อื่นเรียกได้
+_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
+_G.UFO_HATCH_Start = startLoop
+_G.UFO_HATCH_Stop  = stopLoop
