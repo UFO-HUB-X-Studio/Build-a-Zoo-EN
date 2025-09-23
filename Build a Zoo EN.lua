@@ -228,16 +228,16 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (เลื่อนลง + ชิดซ้ายในกรอบ left)
+-- 🏠 HOME BUTTON (แยกจาก UIListLayout | บังคับ X,Y เองได้)
 ----------------------------------------------------------------
 do
-    local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
+    local old = mainGui:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
     local btnHome = make("TextButton",{
-        Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-20,0,40), 
-        Position=UDim2.new(0,4,0,60), -- ❗ เลื่อนลง Y=60, ชิดซ้าย X=4
+        Name="UFOX_HomeBtn", Parent=mainGui, AutoButtonColor=false,
+        Size=UDim2.new(0,120,0,40), 
+        Position=UDim2.new(0,20,0,100), -- ❗ ตำแหน่งตรงนี้เปลี่ยนได้เลย
         BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
-        Text="", ClipsDescendants=true
+        Text="", ClipsDescendants=true, ZIndex=10
     },{
         make("UICorner",{CornerRadius=UDim.new(0,10)}),
         make("UIStroke",{
@@ -262,7 +262,7 @@ do
         Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
         TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    -- เอฟเฟกต์เล็ก ๆ
+    -- เอฟเฟกต์ hover
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
