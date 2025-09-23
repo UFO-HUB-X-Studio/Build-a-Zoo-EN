@@ -567,15 +567,20 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-HATCH (คลิกปุ่ม/บับเบิล "Hatch" บนหน้าจออัตโนมัติ)
--- ไม่ต้องใส่ชื่อไข่ สคริปต์จะหาคำว่า Hatch ใน PlayerGui แล้วกดเอง
+-- 🥚 AUTO-HATCH (nil RemoteFunction mode + fallbacks)
+-- - พยายามหา RemoteFunction อยู่ใน NIL แล้ว :InvokeServer({"Hatch"})
+-- - ถ้าไม่เจอ: ลองสร้าง RF ในนิลแล้ว Invoke (บางเอนจินฮุคไว้)
+-- - ถ้าไม่ติดอีก: ลอง ResourceRE:FireServer({"PULL","FX/FX_born"})
+-- - สุดท้าย: ยิงคลิก/ทัชปุ่ม GUI "Hatch" บนหน้าจอ
+-- ต้องมีตัวแปร make, TS, ACCENT, SUB, FG, content อยู่แล้ว
 ----------------------------------------------------------------
 local Players = game:GetService("Players")
+local RS      = game:GetService("ReplicatedStorage")
 local LP      = Players.LocalPlayer
 local VIM     = game:GetService("VirtualInputManager")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- หา Y สำหรับวางแถวถัดไป
+-- ---------- UI ROW ----------
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -587,14 +592,11 @@ local function nextRowY(pad)
     end
     return y
 end
-
--- ล้างของเก่า
-local old = content:FindFirstChild("RowAutoHatch")
+local old = content:FindFirstChild("RowAutoHatch_NIL")
 if old then old:Destroy() end
 
--- กล่องแถว
 local row = Instance.new("Frame")
-row.Name = "RowAutoHatch"
+row.Name = "RowAutoHatch_NIL"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
@@ -613,9 +615,7 @@ lb.Text = "Auto-Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24
 local sw = Instance.new("TextButton")
-sw.Name = "Switch"
 sw.Parent = row
 sw.AutoButtonColor = false
 sw.Text = ""
@@ -634,36 +634,73 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
--- ========= Engine =========
+-- ---------- ENGINE ----------
 local ON = false
-local CHECK_INTERVAL = 0.20   -- เช็คทุก 0.2s
-local CLICK_BURST     = 2     -- กดย้ำกี่ครั้งต่อการพบปุ่ม
+local INTERVAL = 0.25  -- ยิงทุก 0.25 วิ
 local loop
 
--- หา GUI ที่มีข้อความ Hatch และมองเห็นจริง ๆ
+-- helper: getnilinstances (ถ้ามี)
+local function canGetNil()
+    local ok, res = pcall(function() return getnilinstances and type(getnilinstances)=="function" end)
+    return ok and res
+end
+
+local function findNilRemoteFunction(nameHint)
+    if not canGetNil() then return nil end
+    for _,v in next, getnilinstances() do
+        if typeof(v)=="Instance" and v.ClassName=="RemoteFunction" then
+            local n = tostring(v.Name or "")
+            if n:lower():find("hatch") or (nameHint and n:lower():find(nameHint:lower())) then
+                return v
+            end
+        end
+    end
+    return nil
+end
+
+-- fallback 1: RF ในนิล (จากคุณขอ)
+local HATCH_ARGS = {"Hatch"}
+local function tryNilInvoke()
+    local rf = findNilRemoteFunction()  -- หา RF ที่ชื่อมีคำว่า hatch
+    if rf then
+        return pcall(function() rf:InvokeServer(unpack(HATCH_ARGS)) end)
+    end
+    -- บางเอนจินฮุค Instance.new(RemoteFunction,nil):InvokeServer ให้วิ่งเข้าแชนแนลพิเศษ
+    local ok = pcall(function()
+        Instance.new("RemoteFunction", nil):InvokeServer(unpack(HATCH_ARGS))
+    end)
+    return ok
+end
+
+-- fallback 2: Remote ของเกม (ResourceRE)
+local function tryResourceRE()
+    local remoteFolder = RS:FindFirstChild("Remote")
+    if not remoteFolder then return false end
+    local re = remoteFolder:FindFirstChild("ResourceRE")
+    if not re then return false end
+    local ok = pcall(function()
+        re:FireServer("PULL","FX/FX_born")
+    end)
+    return ok
+end
+
+-- fallback 3: คลิกปุ่ม GUI "Hatch"
 local function getVisibleHatchGui()
     local pg = LP:FindFirstChildOfClass("PlayerGui")
     if not pg then return nil end
-
     local best, bestZ = nil, -1
     for _,d in ipairs(pg:GetDescendants()) do
-        if d:IsA("TextButton") or d:IsA("TextLabel") or d:IsA("ImageButton") then
-            local txt = rawget(d, "Text")
-            if (txt and string.match(string.lower(txt), "hatch"))
-               or string.find(string.lower(d.Name), "hatch") then
-                -- ต้องมองเห็นและมีขนาด
-                local ok = true
-                local cur = d
+        if (d:IsA("TextButton") or d:IsA("TextLabel") or d:IsA("ImageButton")) and d:IsA("GuiObject") then
+            local txt = rawget(d,"Text")
+            if (txt and txt:lower():find("hatch")) or d.Name:lower():find("hatch") then
+                local cur, vis = d, true
                 while cur and cur ~= pg do
                     if cur:IsA("GuiObject") then
-                        if not cur.Visible or cur.AbsoluteSize.X <= 0 or cur.AbsoluteSize.Y <= 0 then
-                            ok = false; break
-                        end
+                        if not cur.Visible or cur.AbsoluteSize.X<=0 or cur.AbsoluteSize.Y<=0 then vis=false break end
                     end
                     cur = cur.Parent
                 end
-                if ok and d:IsA("GuiObject") then
-                    -- เลือกตัวที่อยู่บนสุด (ZIndex สูงหรืออยู่ท้าย)
+                if vis then
                     local z = d.ZIndex or 0
                     if z > bestZ then best, bestZ = d, z end
                 end
@@ -672,16 +709,9 @@ local function getVisibleHatchGui()
     end
     return best
 end
-
--- คลิก/ทัชกลางปุ่ม
 local function clickGuiCenter(g)
-    if not (g and g.AbsoluteSize and g.AbsolutePosition) then return end
-    local pos = g.AbsolutePosition
-    local size = g.AbsoluteSize
-    local x = pos.X + size.X/2
-    local y = pos.Y + size.Y/2
-
-    -- ยิงทั้งเมาส์และทัชเพื่อความชัวร์ (บางแพลตฟอร์มรับอย่างใดอย่างหนึ่ง)
+    local pos, size = g.AbsolutePosition, g.AbsoluteSize
+    local x, y = pos.X + size.X/2, pos.Y + size.Y/2
     pcall(function()
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 0)
         VIM:SendMouseButtonEvent(x, y, 0, false, game, 0)
@@ -690,6 +720,14 @@ local function clickGuiCenter(g)
         VIM:SendTouchEvent(x, y, 0, true, game)
         VIM:SendTouchEvent(x, y, 0, false, game)
     end)
+end
+local function tryClickHatch()
+    local g = getVisibleHatchGui()
+    if not g then return false end
+    clickGuiCenter(g)
+    task.wait(0.05)
+    clickGuiCenter(g)
+    return true
 end
 
 -- UI state
@@ -705,20 +743,21 @@ local function setUI(state)
     end
 end
 
+local function tickOnce()
+    -- เรียงลำดับตามที่คุณต้องการ: NIL → ResourceRE → คลิก GUI
+    if tryNilInvoke() then return true end
+    if tryResourceRE() then return true end
+    if tryClickHatch() then return true end
+    return false
+end
+
 local function startLoop()
     if ON then return end
     ON = true
     loop = task.spawn(function()
         while ON do
-            local g = getVisibleHatchGui()
-            if g then
-                -- กดย้ำ 1–2 ครั้งกันพลาด
-                for i=1, CLICK_BURST do
-                    clickGuiCenter(g)
-                    task.wait(0.05)
-                end
-            end
-            task.wait(CHECK_INTERVAL)
+            tickOnce()
+            task.wait(INTERVAL)
         end
     end)
     setUI(true)
@@ -732,5 +771,10 @@ end
 sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
+
+-- ให้สคริปต์อื่นเรียก
+_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
+_G.UFO_HATCH_Start = startLoop
+_G.UFO_HATCH_Stop  = stopLoop
 
 setUI(false)
