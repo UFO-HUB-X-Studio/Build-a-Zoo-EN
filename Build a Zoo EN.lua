@@ -702,11 +702,11 @@ end
 
 local function setUI(state)
     if state then
-        lb.Text = "Auto-Hatch (ON)"
+        lb.Text = "Auto Egg Hatch (ON)"
         TS:Create(sw, TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
         TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
     else
-        lb.Text = "Auto-Hatch (OFF)"
+        lb.Text = "Auto Egg Hatch (OFF)"
         TS:Create(sw, TweenFast, {BackgroundColor3 = SUB}):Play()
         TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
     end
