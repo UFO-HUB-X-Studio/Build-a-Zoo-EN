@@ -239,7 +239,7 @@ do
     btnHome.Parent = left
     btnHome.AutoButtonColor = false
     btnHome.Size = UDim2.new(1, -16, 0, 38)   -- กว้างพอดี
-    btnHome.Position = UDim2.fromOffset(-10, 80) -- 👈 ซ้าย 4px / ลง 40px
+    btnHome.Position = UDim2.fromOffset(-100, 100) -- 👈 ซ้าย 4px / ลง 40px
     btnHome.BackgroundColor3 = SUB
     btnHome.Font = Enum.Font.GothamBold
     btnHome.TextSize = 15
