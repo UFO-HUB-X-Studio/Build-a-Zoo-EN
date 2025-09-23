@@ -715,248 +715,148 @@ sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
 sw.Position = UDim2.new(1,-12,0.5,0)
 ----------------------------------------------------------------
--- 🖐️ AUTO HATCH (Tap the real GUI button like a finger)
--- - ค้นปุ่มที่มี Text = "Hatch" (ไม่สนตัวพิมพ์ใหญ่/เล็ก)
--- - แตะด้วย VirtualInputManager (กด/ปล่อยเมาส์ที่ตำแหน่งปุ่ม)
--- - สำรอง: :Activate(), firesignal(...) เผื่อเกมดัก input
+-- 🖐️ AUTO HATCH (Finger Tap Version — 100% try all cases)
 ----------------------------------------------------------------
 local Vim   = game:GetService("VirtualInputManager")
 local PLR   = game:GetService("Players").LocalPlayer
 local CG    = game:GetService("CoreGui")
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- ==== ยูทิล ====
-local function downUpAtScreen(x, y)
+-- ===== Utils =====
+local function downUpAt(x,y)
     pcall(function()
-        Vim:SendMouseMove(x, y)
-        Vim:SendMouseButtonEvent(x, y, 0, true,  game, 0)  -- down (left=0)
-        task.wait(0.03)
-        Vim:SendMouseButtonEvent(x, y, 0, false, game, 0)  -- up
+        Vim:SendMouseMove(x,y)
+        Vim:SendMouseButtonEvent(x,y,0,true,game,0)
+        task.wait(0.05)
+        Vim:SendMouseButtonEvent(x,y,0,false,game,0)
     end)
 end
-
-local function centerOf(guiObj)
-    local p = guiObj.AbsolutePosition
-    local s = guiObj.AbsoluteSize
-    return p.X + s.X/2, p.Y + s.Y/2
+local function center(gui)
+    local p,s = gui.AbsolutePosition, gui.AbsoluteSize
+    return p.X+s.X/2, p.Y+s.Y/2
 end
-
-local function isHatchButton(obj)
-    if not (obj and obj:IsA("GuiButton") and obj.Visible) then return false end
-    -- ข้ามปุ่มที่ถูกปิดทับ/โปร่งจนคลิกไม่ได้
-    local a = obj.Active ~= false
-    local t = tostring(obj.Text or "")
-    if a and #t > 0 and t:lower():find("hatch") then
-        return true
-    end
-    -- เผื่อเป็น ImageButton ที่ไม่มีข้อความ แต่มี label ลูก
-    for _,c in ipairs(obj:GetDescendants()) do
-        if c:IsA("TextLabel") or c:IsA("TextButton") then
-            local tt = tostring(c.Text or "")
-            if #tt>0 and tt:lower():find("hatch") then
+local function isHatchBtn(obj)
+    if not (obj and obj.Visible) then return false end
+    if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+        if obj.Text and obj.Text:lower():find("hatch") then return true end
+        for _,c in ipairs(obj:GetDescendants()) do
+            if (c:IsA("TextLabel") or c:IsA("TextButton")) and c.Text and c.Text:lower():find("hatch") then
                 return true
             end
         end
     end
     return false
 end
-
-local function scanForHatchButtons()
-    local results = {}
-
-    -- 1) gethui() ถ้ามี
+local function findHatch()
+    local all = {}
+    -- gethui
     if gethui then
         local ok,ui = pcall(gethui)
         if ok and ui then
             for _,d in ipairs(ui:GetDescendants()) do
-                if isHatchButton(d) then table.insert(results, d) end
+                if isHatchBtn(d) then table.insert(all,d) end
             end
         end
     end
-
-    -- 2) CoreGui
+    -- CoreGui
     for _,d in ipairs(CG:GetDescendants()) do
-        if isHatchButton(d) then table.insert(results, d) end
+        if isHatchBtn(d) then table.insert(all,d) end
     end
-
-    -- 3) PlayerGui
+    -- PlayerGui
     local pg = PLR:FindFirstChildOfClass("PlayerGui")
     if pg then
         for _,d in ipairs(pg:GetDescendants()) do
-            if isHatchButton(d) then table.insert(results, d) end
+            if isHatchBtn(d) then table.insert(all,d) end
         end
     end
-
-    return results
+    return all
 end
-
-local function tryTapButton(btn)
-    local ok=false
-    -- วิธี A: VirtualInput (เลียนิ้ว)
-    local x,y = centerOf(btn)
-    downUpAtScreen(x,y)
-    ok=true
-
-    -- วิธี B (สำรอง): ส่งสัญญาณ event ของตัวปุ่ม
+local function tap(btn)
+    local x,y=center(btn)
+    downUpAt(x,y)
+    -- สำรอง firesignal
     pcall(function()
-        if typeof(firesignal)=="function" then
+        if firesignal then
             firesignal(btn.MouseButton1Down)
             firesignal(btn.MouseButton1Click)
             firesignal(btn.MouseButton1Up)
         end
     end)
-
-    -- วิธี C (สำรอง): Roblox GUI activate
-    pcall(function()
-        if btn.Activate then btn:Activate() end
-        if btn.CaptureFocus then btn:CaptureFocus(); btn:ReleaseFocus() end
-    end)
-
-    return ok
+    -- สำรอง Activate
+    pcall(function() if btn.Activate then btn:Activate() end end)
 end
 
--- ==== UI สวิตช์เล็ก วางต่อท้ายแถวใน content ====
-local function nextRowY(pad)
-    pad = pad or 8
-    local y = 10
+-- ===== Add UI row =====
+local function nextRowY()
+    local y=10
     for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") and c.Visible and c.AbsoluteSize.Y > 0 then
-            local yo = c.Position.Y.Offset + c.Size.Y.Offset
-            if yo + pad > y then y = yo + pad end
+        if c:IsA("Frame") then
+            local yo=c.Position.Y.Offset+c.Size.Y.Offset
+            if yo+8>y then y=yo+8 end
         end
     end
     return y
 end
 
--- ลบของเก่าถ้ามี
-local old = content:FindFirstChild("RowAutoHatchTap")
-if old then old:Destroy() end
+local old=content:FindFirstChild("RowAutoHatchFinal"); if old then old:Destroy() end
+local row=Instance.new("Frame")
+row.Name="RowAutoHatchFinal"; row.Parent=content
+row.BackgroundColor3=Color3.fromRGB(18,18,18)
+row.Size=UDim2.new(1,-20,0,44); row.Position=UDim2.fromOffset(10,nextRowY())
+Instance.new("UICorner",row).CornerRadius=UDim.new(0,10)
+local st=Instance.new("UIStroke",row); st.Color=ACCENT; st.Thickness=2; st.Transparency=0.05
 
--- Row กล่อง
-local row = Instance.new("Frame")
-row.Name = "RowAutoHatchTap"
-row.Parent = content
-row.BackgroundColor3 = Color3.fromRGB(18,18,18)
-row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, nextRowY(8))
-Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
-local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
+local lb=Instance.new("TextLabel",row); lb.BackgroundTransparency=1
+lb.Font=Enum.Font.GothamBold; lb.TextSize=15; lb.TextColor3=FG
+lb.TextXAlignment=Enum.TextXAlignment.Left; lb.Text="Auto Hatch (OFF)"
+lb.Size=UDim2.new(1,-150,1,0); lb.Position=UDim2.new(0,12,0,0)
 
--- ชื่อ
-local lb = Instance.new("TextLabel")
-lb.Parent = row
-lb.BackgroundTransparency = 1
-lb.Font = Enum.Font.GothamBold
-lb.TextSize = 15
-lb.TextXAlignment = Enum.TextXAlignment.Left
-lb.TextColor3 = FG
-lb.Text = "Auto Hatch (Tap) — OFF"
-lb.Position = UDim2.new(0,12,0,0)
-lb.Size = UDim2.new(1,-150,1,0)
+local sw=Instance.new("TextButton",row); sw.AutoButtonColor=false; sw.Text=""
+sw.AnchorPoint=Vector2.new(1,0.5); sw.Position=UDim2.new(1,-12,0.5,0)
+sw.Size=UDim2.fromOffset(60,24); sw.BackgroundColor3=SUB
+Instance.new("UICorner",sw).CornerRadius=UDim.new(1,0)
+Instance.new("UIStroke",sw).Color=ACCENT
 
--- สวิตช์เล็ก 60x24 + ปุ่มกลม 20
-local sw = Instance.new("TextButton")
-sw.Name = "Switch"
-sw.Parent = row
-sw.AutoButtonColor = false
-sw.Text = ""
-sw.AnchorPoint = Vector2.new(1,0.5)
-sw.Position = UDim2.new(1,-12,0.5,0)
-sw.Size = UDim2.fromOffset(60,24)
-sw.BackgroundColor3 = SUB
-Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
-local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
+local knob=Instance.new("Frame",sw); knob.Size=UDim2.fromOffset(20,20)
+knob.Position=UDim2.new(0,2,0,2); knob.BackgroundColor3=Color3.fromRGB(210,60,60)
+Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
 
-local knob = Instance.new("Frame")
-knob.Parent = sw
-knob.Size = UDim2.fromOffset(20,20)
-knob.Position = UDim2.new(0,2,0,2)
-knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
-knob.BorderSizePixel = 0
-Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
-
--- แถบเตือน
-local warnBar = Instance.new("TextLabel")
-warnBar.Parent = row
-warnBar.BackgroundColor3 = Color3.fromRGB(60,48,0)
-warnBar.TextColor3 = Color3.fromRGB(255,235,120)
-warnBar.Font = Enum.Font.GothamBold
-warnBar.TextSize = 13
-warnBar.Text = "Hatch button not found (UI hidden?)"
-warnBar.Visible = false
-warnBar.Size = UDim2.new(1,-24,0,20)
-warnBar.Position = UDim2.new(0,12,1,-24)
-warnBar.TextXAlignment = Enum.TextXAlignment.Center
-Instance.new("UICorner", warnBar).CornerRadius = UDim.new(0,6)
-
--- ==== Engine (loop แตะปุ่มจริง) ====
-local ON = false
-local INTERVAL = 0.35   -- ยิงถี่แค่ไหน (วิ)
-local BURST_N  = 2      -- แตะซ้ำกี่ครั้ง/รอบ (กันแตะไม่ติด)
-local lastBtn  = nil    -- จำปุ่มเดิมไว้ ถ้า UI ยังเดิมจะเร็วขึ้น
-
-local function setUI(state)
-    if state then
-        lb.Text = "Auto Hatch (Tap) — ON"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+-- ===== Engine =====
+local ON=false
+local INTERVAL=0.5
+local BURST=2
+local loop
+local function setUI(b)
+    if b then
+        lb.Text="Auto Hatch (ON)"
+        TS:Create(knob,TweenFast,{Position=UDim2.new(1,-22,0,2),BackgroundColor3=ACCENT}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3=Color3.fromRGB(28,60,40)}):Play()
     else
-        lb.Text = "Auto Hatch (Tap) — OFF"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(0,2,0,2), BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        lb.Text="Auto Hatch (OFF)"
+        TS:Create(knob,TweenFast,{Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
+        TS:Create(sw,TweenFast,{BackgroundColor3=SUB}):Play()
     end
 end
-
-local loop
-local function startLoop()
+local function start()
     if ON then return end
-    ON = true
-    warnBar.Visible = false
-    loop = task.spawn(function()
+    ON=true
+    loop=task.spawn(function()
         while ON do
-            -- หาเป้าหมาย
-            local target = lastBtn
-            if not (target and target.Parent and target.Visible) then
-                local list = scanForHatchButtons()
-                target = list[1]
-                lastBtn = target
-            end
-
-            if target then
-                -- แตะหลายครั้งในหนึ่งรอบ
-                for i=1,BURST_N do
-                    tryTapButton(target)
-                    task.wait(0.05)
+            local btns=findHatch()
+            if #btns>0 then
+                for _,b in ipairs(btns) do
+                    for i=1,BURST do tap(b); task.wait(0.05) end
                 end
-                warnBar.Visible = false
-            else
-                warnBar.Visible = true
-                warnBar.Text = "Hatch button not found"
             end
-
-            -- หน่วงตาม INTERVAL
-            local t = INTERVAL
-            while ON and t>0 do
-                task.wait(0.05); t -= 0.05
-            end
+            task.wait(INTERVAL)
         end
     end)
     setUI(true)
 end
-
-local function stopLoop()
-    ON = false
+local function stop()
+    ON=false
     setUI(false)
 end
+sw.MouseButton1Click:Connect(function() if ON then stop() else start() end end)
 
-sw.MouseButton1Click:Connect(function()
-    if ON then stopLoop() else startLoop() end
-end)
-
--- API ให้สคริปต์อื่นเรียกได้
-_G.UFO_HATCH_TAP_Start = startLoop
-_G.UFO_HATCH_TAP_Stop  = stopLoop
-_G.UFO_HATCH_TAP_Set   = function(b) if b then startLoop() else stopLoop() end end
-
--- เริ่มต้น OFF
 setUI(false)
