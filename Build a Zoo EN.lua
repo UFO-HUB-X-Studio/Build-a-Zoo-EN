@@ -288,40 +288,43 @@ do
         end
     end)
 end
-   
-----------------------------------------------------------------
--- 🔁 AFK AUTO-CLICK (anti-kick 20m) — drop-in replacement
--- ใช้ VirtualUser + VirtualInputManager + Idled hook หลายชั้น
--- - คลิกเบา ๆ / ขยับเมาส์ / ส่งปุ่มสเปซเป็นครั้งคราว
--- - ค่าเริ่มต้น: กันเตะทุก ~55 วิ + คลิกใหญ่ทุก 5 นาที
-----------------------------------------------------------------
-local INTERVAL_KEEPALIVE = 55        -- ส่งสัญญาณกันว่างทุก ๆ 55 วิ (น้อยกว่า 60)
-local INTERVAL_BIGCLICK  = 5*60      -- คลิกใหญ่ทุก 5 นาที (กันเกมที่เช็คหนัก)
-local SAFE_JUMP_EVERY    = 5*60      -- กระตุก spacebar ทุก 5 นาที (เบามาก, ปิดได้ด้วยตัวแปร)
-local ENABLE_SAFE_JUMP   = true      -- ถ้ารบกวนเกม ให้ตั้ง false
 
--- ===== Dependencies ที่ UI หลักมีอยู่แล้ว =====
-local TS    = TS or game:GetService("TweenService")
-local UIS   = game:GetService("UserInputService")
-local VIM   = game:GetService("VirtualInputManager")
+----------------------------------------------------------------
+-- 🔁 AFK AUTO-CLICK (anti-kick + 100% dark overlay, hide game UI)
+-- ก๊อปวางแทนของเดิมได้เลย
+----------------------------------------------------------------
+local INTERVAL_KEEPALIVE = 55        -- กันว่างทุก ~55 วิ
+local INTERVAL_BIGCLICK  = 5*60      -- คลิกใหญ่ทุก 5 นาที
+local SAFE_JUMP_EVERY    = 5*60      -- กด space เบา ๆ ทุก 5 นาที
+local ENABLE_SAFE_JUMP   = true
+
+-- ====== deps / fallbacks ======
+local TS  = TS or game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local VIM = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
-local LP    = LP or Players.LocalPlayer
+local LP  = LP or Players.LocalPlayer
 local VirtualUser = VirtualUser or game:GetService("VirtualUser")
+local CG  = game:GetService("CoreGui")
+
+-- สีจากธีมหลัก (fallback ถ้าไม่มี)
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 local SUB    = SUB    or Color3.fromRGB(22,22,22)
 local FG     = FG     or Color3.fromRGB(235,235,235)
-local content = content  -- มาจาก UI หลัก
 
--- ลบของเก่า (ถ้ามี)
-local old = content and content:FindFirstChild("UFOX_RowAFK")
-if old then old:Destroy() end
+-- ต้องมี content/mainGui/toggleGui จาก UI หลัก ถ้าไม่มี ให้สร้าง dummy
+local content = content or Instance.new("Frame"); content.Size = content.Size ~= content.Size and UDim2.new(1,0,1,0) or content.Size
 
--- ===== UI แถวสวิตช์ (เล็กสไตล์ iOS) =====
+-- ตัวช่วยสร้างอินสแตนซ์
 local function make(class, props, kids)
     local o=Instance.new(class); for k,v in pairs(props or {}) do o[k]=v end
     for _,c in ipairs(kids or {}) do c.Parent=o end; return o
 end
 
+-- ลบแถวเก่า (ถ้ามี)
+local old = content:FindFirstChild("UFOX_RowAFK"); if old then old:Destroy() end
+
+-- ===== UI แถวสวิตช์ =====
 local rowAFK = make("Frame",{
     Name="UFOX_RowAFK", Parent=content, BackgroundColor3=Color3.fromRGB(18,18,18),
     Size=UDim2.new(1,-20,0,44), Position=UDim2.fromOffset(10,10)
@@ -348,23 +351,70 @@ local knob = make("Frame",{
     BackgroundColor3=Color3.fromRGB(210,60,60), BorderSizePixel=0
 },{ make("UICorner",{CornerRadius=UDim.new(1,0)}) })
 
--- ===== Core anti-idle engines =====
-local AFK_ON = false
-local idleConn
-local keepaliveThread
-local bigClickThread
-local lastBig = 0
-local lastJump = 0
+-- ===== Dark overlay (ปิด UI เกม แต่ยังเห็น UFO UI) =====
+local overlayGui, overlayFrame
+local prevPlayerGuiEnabled = true
+local function parentSafe(gui)
+    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
+    local ok=false
+    if gethui then ok = pcall(function() gui.Parent = gethui() end) end
+    if not ok then gui.Parent = CG end
+end
+
+local OVERLAY_ORDER  = 2_000_000   -- overlay
+local UFO_MAIN_ORDER = OVERLAY_ORDER + 1
+local UFO_TOGG_ORDER = OVERLAY_ORDER + 2
+
+local function showDark()
+    -- 1) ปิด UI ของเกมทั้งหมด
+    local pg = LP:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        prevPlayerGuiEnabled = pg.Enabled
+        pg.Enabled = false
+    end
+    -- 2) วาง overlay ดำ 100%
+    overlayGui = Instance.new("ScreenGui")
+    overlayGui.Name = "UFOX_DarkOverlay"
+    overlayGui.ResetOnSpawn = false
+    overlayGui.IgnoreGuiInset = true
+    overlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    overlayGui.DisplayOrder = OVERLAY_ORDER
+    parentSafe(overlayGui)
+
+    overlayFrame = Instance.new("Frame")
+    overlayFrame.Size = UDim2.fromScale(1,1)
+    overlayFrame.BackgroundColor3 = Color3.new(0,0,0)
+    overlayFrame.BackgroundTransparency = 0 -- มืด 100%
+    overlayFrame.Parent = overlayGui
+
+    -- 3) ดัน UFO UI ให้อยู่เหนือ overlay
+    pcall(function()
+        if mainGui then mainGui.DisplayOrder = UFO_MAIN_ORDER end
+        if toggleGui then toggleGui.DisplayOrder = UFO_TOGG_ORDER end
+    end)
+end
+
+local function hideDark()
+    -- เอา overlay ออก
+    if overlayGui then overlayGui:Destroy(); overlayGui=nil; overlayFrame=nil end
+    -- เปิด UI เกมกลับ
+    local pg = LP:FindFirstChildOfClass("PlayerGui")
+    if pg then pg.Enabled = prevPlayerGuiEnabled end
+end
+
+-- ===== Anti-idle engines =====
+local AFK_ON=false
+local idleConn, keepaliveThread, bigThread
+local lastBig, lastJump = 0, 0
 
 local function cameraCenterXY()
     local cam = workspace.CurrentCamera
-    if not cam then return 400, 300 end
+    if not cam then return 400,300 end
     local v = cam.ViewportSize
     return math.floor(v.X/2), math.floor(v.Y/2)
 end
 
 local function tinyMouseNudge()
-    -- ขยับเมาส์ 1 พิกเซลไปมา (บางเกมพอแค่นี้)
     local x,y = cameraCenterXY()
     pcall(function()
         VIM:SendMouseMoveEvent(x+1, y, game, 0)
@@ -374,7 +424,6 @@ local function tinyMouseNudge()
 end
 
 local function virtualUserKick()
-    -- ยิง VirtualUser แบบมาตรฐานกันเตะ
     pcall(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new(0,0))
@@ -390,13 +439,11 @@ local function softSpacebar()
 end
 
 local function simulateKeepAlive()
-    -- เล็กแต่ถี่: พยายามไม่รบกวนเกม
     tinyMouseNudge()
     virtualUserKick()
 end
 
 local function simulateBig()
-    -- กดคลิกชัด ๆ ที่กึ่งกลาง (เผื่อบางเกมเช็คเข้ม)
     local x,y = cameraCenterXY()
     pcall(function()
         VIM:SendMouseButtonEvent(x, y, 0, true, game, 0)
@@ -405,7 +452,7 @@ local function simulateBig()
     end)
 end
 
--- ===== UI states =====
+-- UI state
 local function setAFKUI(on)
     if on then
         lbAFK.Text = "AFK (ON)"
@@ -418,20 +465,19 @@ local function setAFKUI(on)
     end
 end
 
--- ===== Loops & hooks =====
+-- Start / Stop
 local function startAFK()
     if AFK_ON then return end
     AFK_ON = true
     setAFKUI(true)
+    showDark()
 
-    -- Hook Roblox anti-idle: โดนเรียกก่อนครบ 20 นาทีเสมอ
     if idleConn then idleConn:Disconnect() end
     idleConn = LP.Idled:Connect(function()
         simulateKeepAlive()
         softSpacebar()
     end)
 
-    -- keepalive ถี่ ๆ ทุก ~55 วิ
     keepaliveThread = task.spawn(function()
         while AFK_ON do
             simulateKeepAlive()
@@ -439,17 +485,14 @@ local function startAFK()
         end
     end)
 
-    -- big click + spacebar ทุก 5 นาที
-    bigClickThread = task.spawn(function()
+    bigThread = task.spawn(function()
         while AFK_ON do
             local now = os.clock()
             if now - lastBig >= INTERVAL_BIGCLICK then
-                simulateBig()
-                lastBig = now
+                simulateBig(); lastBig = now
             end
             if ENABLE_SAFE_JUMP and (now - lastJump >= SAFE_JUMP_EVERY) then
-                softSpacebar()
-                lastJump = now
+                softSpacebar(); lastJump = now
             end
             task.wait(1)
         end
@@ -460,10 +503,12 @@ local function stopAFK()
     if not AFK_ON then return end
     AFK_ON = false
     setAFKUI(false)
+    hideDark()
     if idleConn then idleConn:Disconnect(); idleConn=nil end
-    -- threads จะหลุดจากลูปเอง
+    -- threads หลุดลูปเอง
 end
 
+-- สวิตช์คลิก
 swAFK.MouseButton1Click:Connect(function()
     if AFK_ON then stopAFK() else startAFK() end
 end)
