@@ -228,16 +228,29 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (ขอบเขียวคมชัด | จัดตำแหน่งใหม่ให้ไม่ชิดขอบ)
+-- 🏠 HOME BUTTON (Auto Layout + ขอบเขียวคมชัด)
 ----------------------------------------------------------------
 do
     local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
+
+    -- ตรวจว่ามี Layout ไหม ถ้าไม่มีให้สร้าง
+    if not left:FindFirstChild("UIListLayout") then
+        make("UIListLayout",{
+            Parent=left,
+            FillDirection=Enum.FillDirection.Vertical,
+            Padding=UDim.new(0,10),
+            HorizontalAlignment=Enum.HorizontalAlignment.Center,
+            VerticalAlignment=Enum.VerticalAlignment.Top,
+            SortOrder=Enum.SortOrder.LayoutOrder
+        })
+    end
+
     local btnHome = make("TextButton",{
         Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-20,0,40), 
-        Position=UDim2.fromOffset(12,20), -- ← ขยับออกจากซ้าย 12px และลงล่าง 20px
+        Size=UDim2.new(1,-16,0,40), -- กว้างเต็มช่อง -16px, สูง 40px
         BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
-        Text="", ClipsDescendants=true
+        Text="", ClipsDescendants=true,
+        LayoutOrder=1 -- ให้เรียงเป็นปุ่มแรก
     },{
         make("UICorner",{CornerRadius=UDim.new(0,10)}),
         make("UIStroke",{
@@ -256,6 +269,7 @@ do
             VerticalAlignment=Enum.VerticalAlignment.Center
         })
     })
+
     make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
         Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
     make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
