@@ -567,115 +567,126 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO HATCH (toggle loop 2s ON / 2s OFF)
+-- 🥚 AUTO-HATCH (toggle switch, auto on/off every 2s)
 ----------------------------------------------------------------
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local RS = game:GetService("ReplicatedStorage")
 
--- ลบของเก่า
+-- หาตำแหน่งวางแถวถัดไป
+local function nextRowY(pad)
+    pad = pad or 8
+    local y = 10
+    for _,c in ipairs(content:GetChildren()) do
+        if c:IsA("Frame") then
+            local yo = c.Position.Y.Offset + c.Size.Y.Offset
+            if yo + pad > y then y = yo + pad end
+        end
+    end
+    return y
+end
+
+-- ลบของเก่ากันซ้ำ
 local old = content:FindFirstChild("RowAutoHatch")
 if old then old:Destroy() end
 
--- UI row
-local row = Instance.new("Frame", content)
+-- กล่องแถว
+local row = Instance.new("Frame")
 row.Name = "RowAutoHatch"
+row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, 200) -- ปรับตำแหน่งตามต้องการ
+row.Position = UDim2.fromOffset(10, nextRowY(8))
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
-Instance.new("UIStroke", row).Color = ACCENT
+local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
-local lb = Instance.new("TextLabel", row)
+-- ป้ายชื่อ
+local lb = Instance.new("TextLabel")
+lb.Parent = row
 lb.BackgroundTransparency = 1
 lb.Font = Enum.Font.GothamBold
 lb.TextSize = 15
 lb.TextXAlignment = Enum.TextXAlignment.Left
 lb.TextColor3 = FG
-lb.Text = "Auto Hatch (OFF)"
+lb.Text = "Auto-Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
-local sw = Instance.new("TextButton", row)
+-- สวิตช์เล็ก
+local sw = Instance.new("TextButton")
+sw.Parent = row
+sw.AutoButtonColor = false
+sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
 sw.Position = UDim2.new(1,-12,0.5,0)
 sw.Size = UDim2.fromOffset(60,24)
-sw.Text = ""
 sw.BackgroundColor3 = SUB
 Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
-Instance.new("UIStroke", sw).Color = ACCENT
-local knob = Instance.new("Frame", sw)
+local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
+
+local knob = Instance.new("Frame")
+knob.Parent = sw
 knob.Size = UDim2.fromOffset(20,20)
 knob.Position = UDim2.new(0,2,0,2)
 knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
-----------------------------------------------------------------
 -- Engine
-----------------------------------------------------------------
-local RUNNING=false
+local ON = false
 local loop
 
-local function setUI(state)
-    if state then
-        lb.Text="Auto Hatch (ON)"
-        TS:Create(sw, TweenFast, {BackgroundColor3=Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
-    else
-        lb.Text="Auto Hatch (OFF)"
-        TS:Create(sw, TweenFast, {BackgroundColor3=SUB}):Play()
-        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
-    end
-end
-
--- ยิง Hatch ครั้งเดียว (ลองทั้ง shared และ RF)
-local function fireHatchOnce()
-    local ok=false
-    local f=rawget(shared,"LocalQucikHatch")
-    if type(f)=="function" then
-        ok=pcall(f) or ok
-    end
-    if not ok then
-        for _,desc in ipairs(workspace:GetDescendants()) do
-            if desc:GetAttribute("EggType") and desc:FindFirstChild("RF") then
-                ok=pcall(function() desc.RF:InvokeServer("Hatch") end) or ok
-            end
-        end
-    end
-    return ok
-end
-
-local function startLoop()
-    if RUNNING then return end
-    RUNNING=true
-    loop=task.spawn(function()
-        while RUNNING do
-            -- ON phase
-            setUI(true)
-            local t0=os.clock()
-            while RUNNING and os.clock()-t0<2 do
-                fireHatchOnce()
-                task.wait(0.5)
-            end
-            -- OFF phase
-            setUI(false)
-            task.wait(2)
-        end
+local function fireHatch()
+    pcall(function()
+        local remote = Instance.new("RemoteFunction")
+        remote.Name = "TempRF"
+        remote.Parent = nil
+        remote:InvokeServer("Hatch")
+        remote:Destroy()
     end)
 end
 
+local function setUI(state)
+    if state then
+        lb.Text = "Auto-Hatch (ON)"
+        TS:Create(sw, TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
+    else
+        lb.Text = "Auto-Hatch (OFF)"
+        TS:Create(sw, TweenFast, {BackgroundColor3 = SUB}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2), BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
+    end
+end
+
+local function startLoop()
+    if loop then return end
+    ON = true
+    loop = task.spawn(function()
+        while ON do
+            -- เปิด 2 วิ
+            local t0 = os.clock()
+            while (os.clock()-t0) < 2 and ON do
+                fireHatch()
+                task.wait(0.5)
+            end
+            -- ปิด 2 วิ
+            local t1 = os.clock()
+            while (os.clock()-t1) < 2 and ON do
+                task.wait(0.5)
+            end
+        end
+        loop=nil
+    end)
+    setUI(true)
+end
+
 local function stopLoop()
-    RUNNING=false
+    ON = false
     setUI(false)
 end
 
 sw.MouseButton1Click:Connect(function()
-    if RUNNING then stopLoop() else startLoop() end
+    if ON then stopLoop() else startLoop() end
 end)
 
-_G.UFO_HATCH_Start=startLoop
-_G.UFO_HATCH_Stop=stopLoop
-_G.UFO_HATCH_Set=function(b) if b then startLoop() else stopLoop() end end
-
+-- เริ่มต้นปิด
 setUI(false)
