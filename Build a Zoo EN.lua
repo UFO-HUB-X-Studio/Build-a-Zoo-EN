@@ -228,13 +228,14 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (ขอบเขียวคมชัด)
+-- 🏠 HOME BUTTON (ขอบเขียวคมชัด | จัดตำแหน่งใหม่ให้ไม่ชิดขอบ)
 ----------------------------------------------------------------
 do
     local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
     local btnHome = make("TextButton",{
         Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,8),
+        Size=UDim2.new(1,-20,0,40), 
+        Position=UDim2.fromOffset(12,20), -- ← ขยับออกจากซ้าย 12px และลงล่าง 20px
         BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
         Text="", ClipsDescendants=true
     },{
@@ -261,7 +262,7 @@ do
         Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
         TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    -- เอฟเฟกต์เล็ก ๆ
+    -- เอฟเฟกต์ hover
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -273,7 +274,6 @@ do
         if typeof(_G.UFO_OpenHomePage)=="function" then
             pcall(_G.UFO_OpenHomePage)
         else
-            -- ถ้ายังไม่มีหน้าอื่น ก็แค่กะพริบ content ให้รู้ว่ากดแล้ว
             TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
             task.delay(0.12, function()
                 TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
