@@ -228,58 +228,94 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (ขอบเขียวคมชัด | ขยับซ้าย-ลงนิดนึง)
+-- 🏠 HOME BUTTON — fix: stay inside green border + proper padding
 ----------------------------------------------------------------
+-- ลบของเก่า
 do
-    local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
-    local btnHome = make("TextButton",{
-        Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(-500,500),
-        BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
-        Text="", ClipsDescendants=true
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{
-            Color=ACCENT, Thickness=2, Transparency=0,
-            ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-        })
-    })
-
-    local row = make("Frame",{
-        Parent=btnHome, BackgroundTransparency=1,
-        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
-    },{
-        make("UIListLayout",{
-            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-            HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Center
-        })
-    })
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
-        Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
-        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
-
-    -- เอฟเฟกต์เล็ก ๆ
-    btnHome.MouseEnter:Connect(function()
-        TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
-    end)
-    btnHome.MouseLeave:Connect(function()
-        TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
-    end)
-
-    btnHome.MouseButton1Click:Connect(function()
-        if typeof(_G.UFO_OpenHomePage)=="function" then
-            pcall(_G.UFO_OpenHomePage)
-        else
-            TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
-            task.delay(0.12, function()
-                TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
-            end)
-        end
-    end)
+    local old = left:FindFirstChild("BtnHome")
+    if old then old:Destroy() end
 end
+
+-- ปุ่ม (ย่อขนาดเข้ามา 10px รอบด้าน ให้ไม่ชนขอบ UIStroke)
+local btnHome = Instance.new("TextButton")
+btnHome.Name = "BtnHome"
+btnHome.Parent = left
+btnHome.AutoButtonColor = false
+btnHome.Text = ""
+btnHome.BackgroundColor3 = SUB
+btnHome.Size = UDim2.new(1, -20, 0, 40)   -- ← กรอบซ้าย-ขวาเว้น 10px
+btnHome.Position = UDim2.fromOffset(10, 10)
+btnHome.ClipsDescendants = true
+Instance.new("UICorner", btnHome).CornerRadius = UDim.new(0, 10)
+
+-- กรอบสีเขียว “ชัด” (ไม่จาง)
+local st = Instance.new("UIStroke", btnHome)
+st.Color = ACCENT
+st.Thickness = 2
+st.Transparency = 0
+
+-- padding ภายในให้ไอคอน/ข้อความไม่ติดเส้นเขียว
+local pad = Instance.new("UIPadding", btnHome)
+pad.PaddingLeft  = UDim.new(0, 12)
+pad.PaddingRight = UDim.new(0, 12)
+
+-- แถวภายใน (จัดวางไอคอน + ข้อความ)
+local row = Instance.new("Frame")
+row.Parent = btnHome
+row.BackgroundTransparency = 1
+row.Size = UDim2.fromScale(1,1)
+
+local layout = Instance.new("UIListLayout")
+layout.Parent = row
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+layout.VerticalAlignment   = Enum.VerticalAlignment.Center
+layout.Padding = UDim.new(0, 8)
+
+local icon = Instance.new("TextLabel")
+icon.Parent = row
+icon.BackgroundTransparency = 1
+icon.Size = UDim2.fromOffset(20,20)
+icon.Font = Enum.Font.GothamBold
+icon.TextSize = 16
+icon.TextColor3 = FG
+icon.Text = "🏠"
+
+local label = Instance.new("TextLabel")
+label.Parent = row
+label.BackgroundTransparency = 1
+label.Size = UDim2.new(1, -28, 1, 0) -- เผื่อที่หลังไอคอน
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Font = Enum.Font.GothamBold
+label.TextSize = 15
+label.TextColor3 = FG
+label.Text = "Home"
+
+-- เอฟเฟกต์ hover/press เล็กน้อย
+btnHome.MouseEnter:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+end)
+btnHome.MouseLeave:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+end)
+btnHome.MouseButton1Down:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.06), {BackgroundColor3 = Color3.fromRGB(40,40,40)}):Play()
+end)
+btnHome.MouseButton1Up:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+end)
+
+-- การคลิก (ถ้ามีฟังก์ชันเปิดหน้าอื่นให้เรียก, ไม่งั้นกะพริบ content แจ้ง)
+btnHome.MouseButton1Click:Connect(function()
+    if typeof(_G.UFO_OpenHomePage) == "function" then
+        pcall(_G.UFO_OpenHomePage)
+    else
+        TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
+        task.delay(0.15, function()
+            TS:Create(content, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
+        end)
+    end
+end)
 
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick 20m) — drop-in replacement
