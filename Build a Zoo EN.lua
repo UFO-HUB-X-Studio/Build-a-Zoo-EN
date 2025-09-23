@@ -567,44 +567,24 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO HATCH (ใช้ shared.LocalQucikHatch ของเกมโดยตรง + fallback)
--- วางบล็อกนี้ในไฟล์ UI หลัก (มี make, TS, ACCENT, SUB, FG, content แล้ว)
+-- 🥚 AUTO HATCH (ทนบัค, รีเซ็ตเองถ้าไม่ติด)
 ----------------------------------------------------------------
 local Players = game:GetService("Players")
-local RS      = game:GetService("ReplicatedStorage")
-local LP      = Players.LocalPlayer
+local LP = Players.LocalPlayer
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- หา y ต่อจากแถวสุดท้ายใน content
-local function nextRowY(pad)
-    pad = pad or 8
-    local y = 10
-    for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") and c.Visible and c.AbsoluteSize.Y > 0 then
-            local yo = c.Position.Y.Offset + c.Size.Y.Offset
-            if yo + pad > y then y = yo + pad end
-        end
-    end
-    return y
-end
-
--- ลบของเก่าถ้ามี
+-- UI row (ลบของเก่า)
 local old = content:FindFirstChild("RowAutoHatch")
 if old then old:Destroy() end
-
--- กล่องแถว
-local row = Instance.new("Frame")
+local row = Instance.new("Frame", content)
 row.Name = "RowAutoHatch"
-row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
-row.Position = UDim2.fromOffset(10, nextRowY(8))
+row.Position = UDim2.fromOffset(10, 200) -- ตำแหน่งปรับเอง
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
-local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
+Instance.new("UIStroke", row).Color = ACCENT
 
--- ป้ายชื่อ
-local lb = Instance.new("TextLabel")
-lb.Parent = row
+local lb = Instance.new("TextLabel", row)
 lb.BackgroundTransparency = 1
 lb.Font = Enum.Font.GothamBold
 lb.TextSize = 15
@@ -614,21 +594,15 @@ lb.Text = "Auto Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24
-local sw = Instance.new("TextButton")
-sw.Name = "Switch"
-sw.Parent = row
-sw.AutoButtonColor = false
-sw.Text = ""
+local sw = Instance.new("TextButton", row)
 sw.AnchorPoint = Vector2.new(1,0.5)
 sw.Position = UDim2.new(1,-12,0.5,0)
 sw.Size = UDim2.fromOffset(60,24)
+sw.Text = ""
 sw.BackgroundColor3 = SUB
 Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
-local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
-
-local knob = Instance.new("Frame")
-knob.Parent = sw
+Instance.new("UIStroke", sw).Color = ACCENT
+local knob = Instance.new("Frame", sw)
 knob.Size = UDim2.fromOffset(20,20)
 knob.Position = UDim2.new(0,2,0,2)
 knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
@@ -638,111 +612,75 @@ Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 ----------------------------------------------------------------
 -- Engine
 ----------------------------------------------------------------
-local ON = false
-local INTERVAL = 0.5      -- หน่วงระหว่างรอบสแกน/กด
-local BURST    = 2        -- กดย้ำต่อปุ่ม (กันหลุดอินพุต)
+local ON=false
+local INTERVAL=0.75
+local BURST=2
 local loop
-
--- ตรวจว่าเป็นไข่ของเรา (อิงจากสคริปต์ decompile: script.Target.Value มี Attribute UserId)
-local function isOwnedEgg(inst)
-    if typeof(inst) ~= "Instance" then return false end
-    -- ไข่มักเป็น BasePart/Attachment/Model มี Attribute EggType + ลูก RF
-    local hasEggAttr = pcall(function() return inst:GetAttribute("EggType") ~= nil end)
-    if not hasEggAttr then return false end
-    if inst:GetAttribute("UserId") and inst:GetAttribute("UserId") ~= LP.UserId then
-        return false
-    end
-    -- ต้องมีลูก "RF" เป็น RemoteFunction
-    local rf = inst:FindFirstChild("RF")
-    if not (rf and rf:IsA("RemoteFunction")) then return false end
-    return true
-end
-
--- หาไข่ทั้งหมดที่เป็นของเรา
-local function findAllOwnedEggs()
-    local eggs = {}
-    -- ไข่ตัวจริงที่สคริปต์แนบ ProximityPrompt จะอยู่ที่ Value_upvr (ชิ้นส่วนนั้นเลย)
-    -- เราจะสแกน workspace กว้าง ๆ แต่กรองด้วย EggType / RF
-    for _,desc in ipairs(workspace:GetDescendants()) do
-        local ok = false
-        if desc:IsA("BasePart") or desc:IsA("Attachment") or desc:IsA("Model") then
-            if isOwnedEgg(desc) then ok = true end
-        end
-        if ok then table.insert(eggs, desc) end
-    end
-    return eggs
-end
-
--- วิธี 1 (ดีที่สุด): ใช้ฟังก์ชันของเกมเอง
-local function tryLocalQuickHatch()
-    local f = rawget(shared, "LocalQucikHatch") -- สะกดตามเกม
-    if type(f) == "function" then
-        -- เปิด ProximityPrompt สั้น ๆ (เกมเองจะจัดการ RF และ cooldown)
-        for i=1,BURST do
-            local ok = pcall(f)
-            task.wait(0.05)
-        end
-        return true
-    end
-    return false
-end
-
--- วิธี 2: fire proximity prompt ถ้ามี
-local function tryFirePrompt()
-    local prompt = rawget(shared, "LocalHatchProximity")
-    if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled then
-        if typeof(fireproximityprompt) == "function" then
-            for i=1,BURST do
-                pcall(fireproximityprompt, prompt)
-                task.wait(0.05)
-            end
-            return true
-        end
-        -- บาง executor ไม่มี fireproximityprompt → กดคีย์ไม่ได้จาก client
-    end
-    return false
-end
-
--- วิธี 3: ยิง RF:InvokeServer("Hatch") โดยตรงกับไข่ทุกใบของเรา
-local function tryInvokeRFDirect()
-    local eggs = findAllOwnedEggs()
-    if #eggs == 0 then return false end
-    local did = false
-    for _,egg in ipairs(eggs) do
-        local rf = egg:FindFirstChild("RF")
-        if rf and rf:IsA("RemoteFunction") then
-            -- ยิงย้ำเล็กน้อย
-            for i=1,BURST do
-                pcall(function() rf:InvokeServer("Hatch") end)
-                task.wait(0.05)
-            end
-            did = true
-        end
-    end
-    return did
-end
+local failCount=0
 
 local function setUI(state)
     if state then
-        lb.Text = "Auto Hatch (ON)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
+        lb.Text="Auto Hatch (ON)"
+        TS:Create(sw, TweenFast, {BackgroundColor3=Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(1,-22,0,2), BackgroundColor3=ACCENT}):Play()
     else
-        lb.Text = "Auto Hatch (OFF)"
-        TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
-        TS:Create(knob, TweenFast, {Position = UDim2.new(0,2,0,2),  BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
+        lb.Text="Auto Hatch (OFF)"
+        TS:Create(sw, TweenFast, {BackgroundColor3=SUB}):Play()
+        TS:Create(knob, TweenFast, {Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
     end
+end
+
+-- ยิง hatch โดยเลือก method ที่หาได้
+local function tryHatchOnce()
+    local ok=false
+    -- 1. ฟังก์ชันของเกม
+    local f=rawget(shared,"LocalQucikHatch")
+    if type(f)=="function" then
+        for i=1,BURST do
+            ok=pcall(f) or ok
+            task.wait(0.05)
+        end
+    end
+    -- 2. proxprompt
+    if not ok then
+        local p=rawget(shared,"LocalHatchProximity")
+        if p and p:IsA("ProximityPrompt") and p.Enabled then
+            if typeof(fireproximityprompt)=="function" then
+                for i=1,BURST do
+                    ok=pcall(fireproximityprompt,p) or ok
+                    task.wait(0.05)
+                end
+            end
+        end
+    end
+    -- 3. RF ตรง
+    if not ok then
+        for _,desc in ipairs(workspace:GetDescendants()) do
+            if desc:GetAttribute("EggType") and desc:FindFirstChild("RF") then
+                ok=pcall(function() desc.RF:InvokeServer("Hatch") end) or ok
+            end
+        end
+    end
+    return ok
 end
 
 local function startLoop()
     if ON then return end
-    ON = true
-    loop = task.spawn(function()
+    ON=true
+    failCount=0
+    loop=task.spawn(function()
         while ON do
-            -- ลำดับความสำคัญ: ฟังก์ชันของเกม → ProximityPrompt → RF ตรง
-            if not tryLocalQuickHatch() then
-                if not tryFirePrompt() then
-                    tryInvokeRFDirect()
+            local ok=tryHatchOnce()
+            if ok then
+                failCount=0
+            else
+                failCount=failCount+1
+                if failCount>=10 then
+                    -- reset auto เอง ป้องกันค้าง
+                    ON=false
+                    setUI(false)
+                    warn("[UFOHUBX] AutoHatch stopped (no success after 10 tries)")
+                    break
                 end
             end
             task.wait(INTERVAL)
@@ -752,8 +690,7 @@ local function startLoop()
 end
 
 local function stopLoop()
-    if not ON then return end
-    ON = false
+    ON=false
     setUI(false)
 end
 
@@ -761,10 +698,8 @@ sw.MouseButton1Click:Connect(function()
     if ON then stopLoop() else startLoop() end
 end)
 
--- ให้เรียกจากภายนอกได้
-_G.UFO_HATCH_Start = startLoop
-_G.UFO_HATCH_Stop  = stopLoop
-_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
+_G.UFO_HATCH_Start=startLoop
+_G.UFO_HATCH_Stop=stopLoop
+_G.UFO_HATCH_Set=function(b) if b then startLoop() else stopLoop() end end
 
--- เริ่มต้นปิด
 setUI(false)
