@@ -567,20 +567,16 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🥚 AUTO-HATCH (nil RemoteFunction mode + fallbacks)
--- - พยายามหา RemoteFunction อยู่ใน NIL แล้ว :InvokeServer({"Hatch"})
--- - ถ้าไม่เจอ: ลองสร้าง RF ในนิลแล้ว Invoke (บางเอนจินฮุคไว้)
--- - ถ้าไม่ติดอีก: ลอง ResourceRE:FireServer({"PULL","FX/FX_born"})
--- - สุดท้าย: ยิงคลิก/ทัชปุ่ม GUI "Hatch" บนหน้าจอ
--- ต้องมีตัวแปร make, TS, ACCENT, SUB, FG, content อยู่แล้ว
+-- 🥚 AUTO-HATCH (Sequence: NIL RF -> ResourceRE) + GUI fallback
+-- ยิงตามลำดับเดียวกับที่คุณบอกว่าเกม “ขึ้นอันแรก แล้วอันที่สอง”
 ----------------------------------------------------------------
 local Players = game:GetService("Players")
 local RS      = game:GetService("ReplicatedStorage")
-local LP      = Players.LocalPlayer
 local VIM     = game:GetService("VirtualInputManager")
+local LP      = Players.LocalPlayer
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- ---------- UI ROW ----------
+-- ===== UI ROW =====
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -592,11 +588,12 @@ local function nextRowY(pad)
     end
     return y
 end
-local old = content:FindFirstChild("RowAutoHatch_NIL")
+
+local old = content:FindFirstChild("RowAutoHatch_SEQ")
 if old then old:Destroy() end
 
 local row = Instance.new("Frame")
-row.Name = "RowAutoHatch_NIL"
+row.Name = "RowAutoHatch_SEQ"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
@@ -634,23 +631,22 @@ knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
 knob.BorderSizePixel = 0
 Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
 
--- ---------- ENGINE ----------
+-- ===== ENGINE =====
 local ON = false
-local INTERVAL = 0.25  -- ยิงทุก 0.25 วิ
-local loop
+local INTERVAL = 0.5   -- ยิงชุดละทุก 0.5 วินาที (ปรับได้)
+local BURST_N  = 2     -- ใน 1 ชุด ยิงซ้ำ 2 ครั้งเผื่อแพ็กหล่น
 
--- helper: getnilinstances (ถ้ามี)
+-- helper: getnilinstances() พร้อมหา RemoteFunction
 local function canGetNil()
     local ok, res = pcall(function() return getnilinstances and type(getnilinstances)=="function" end)
     return ok and res
 end
-
-local function findNilRemoteFunction(nameHint)
+local function findNilRemoteFunction()
     if not canGetNil() then return nil end
     for _,v in next, getnilinstances() do
         if typeof(v)=="Instance" and v.ClassName=="RemoteFunction" then
             local n = tostring(v.Name or "")
-            if n:lower():find("hatch") or (nameHint and n:lower():find(nameHint:lower())) then
+            if n:lower():find("hatch") then
                 return v
             end
         end
@@ -658,33 +654,41 @@ local function findNilRemoteFunction(nameHint)
     return nil
 end
 
--- fallback 1: RF ในนิล (จากคุณขอ)
+-- step A: NIL RemoteFunction :InvokeServer({"Hatch"})
 local HATCH_ARGS = {"Hatch"}
-local function tryNilInvoke()
-    local rf = findNilRemoteFunction()  -- หา RF ที่ชื่อมีคำว่า hatch
+local function callNilRF()
+    local ok = false
+    -- 1) หา RF ในนิลที่ชื่อมี hatch
+    local rf = findNilRemoteFunction()
     if rf then
-        return pcall(function() rf:InvokeServer(unpack(HATCH_ARGS)) end)
+        ok = pcall(function() rf:InvokeServer(unpack(HATCH_ARGS)) end)
+        if ok then return true end
     end
-    -- บางเอนจินฮุค Instance.new(RemoteFunction,nil):InvokeServer ให้วิ่งเข้าแชนแนลพิเศษ
-    local ok = pcall(function()
+    -- 2) บางเอนจิน hook Instance.new(RemoteFunction,nil)
+    ok = pcall(function()
         Instance.new("RemoteFunction", nil):InvokeServer(unpack(HATCH_ARGS))
     end)
     return ok
 end
 
--- fallback 2: Remote ของเกม (ResourceRE)
-local function tryResourceRE()
+-- step B: ResourceRE:FireServer("PULL","FX/FX_EvolveStart")
+local function callResourceRE()
     local remoteFolder = RS:FindFirstChild("Remote")
     if not remoteFolder then return false end
     local re = remoteFolder:FindFirstChild("ResourceRE")
     if not re then return false end
     local ok = pcall(function()
+        re:FireServer("PULL","FX/FX_EvolveStart")
+    end)
+    if ok then return true end
+    -- สำรองลอง "FX/FX_born"
+    ok = pcall(function()
         re:FireServer("PULL","FX/FX_born")
     end)
     return ok
 end
 
--- fallback 3: คลิกปุ่ม GUI "Hatch"
+-- step C: กดปุ่ม GUI “Hatch” (คลิกกลางปุ่ม)
 local function getVisibleHatchGui()
     local pg = LP:FindFirstChildOfClass("PlayerGui")
     if not pg then return nil end
@@ -721,12 +725,10 @@ local function clickGuiCenter(g)
         VIM:SendTouchEvent(x, y, 0, false, game)
     end)
 end
-local function tryClickHatch()
+local function clickHatchGUI()
     local g = getVisibleHatchGui()
     if not g then return false end
-    clickGuiCenter(g)
-    task.wait(0.05)
-    clickGuiCenter(g)
+    clickGuiCenter(g); task.wait(0.04); clickGuiCenter(g)
     return true
 end
 
@@ -743,26 +745,36 @@ local function setUI(state)
     end
 end
 
-local function tickOnce()
-    -- เรียงลำดับตามที่คุณต้องการ: NIL → ResourceRE → คลิก GUI
-    if tryNilInvoke() then return true end
-    if tryResourceRE() then return true end
-    if tryClickHatch() then return true end
-    return false
+-- ยิงแบบ “ตามลำดับ” ภายในหนึ่งชุด (ทำซ้ำ BURST_N ครั้ง)
+local function fireOneSequence()
+    for _=1, BURST_N do
+        -- A) NIL RF
+        pcall(callNilRF)
+        task.wait(0.05)
+        -- B) ResourceRE
+        pcall(callResourceRE)
+        task.wait(0.05)
+        -- C) GUI fallback
+        pcall(clickHatchGUI)
+        task.wait(0.05)
+    end
 end
 
+local loop
 local function startLoop()
     if ON then return end
     ON = true
     loop = task.spawn(function()
         while ON do
-            tickOnce()
-            task.wait(INTERVAL)
+            fireOneSequence()
+            for i=1, math.floor(INTERVAL*20) do
+                if not ON then break end
+                task.wait(0.05)
+            end
         end
     end)
     setUI(true)
 end
-
 local function stopLoop()
     ON = false
     setUI(false)
@@ -773,8 +785,8 @@ sw.MouseButton1Click:Connect(function()
 end)
 
 -- ให้สคริปต์อื่นเรียก
-_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
-_G.UFO_HATCH_Start = startLoop
-_G.UFO_HATCH_Stop  = stopLoop
+_G.UFO_HATCH_SEQ_Set   = function(b) if b then startLoop() else stopLoop() end end
+_G.UFO_HATCH_SEQ_Start = startLoop
+_G.UFO_HATCH_SEQ_Stop  = stopLoop
 
 setUI(false)
