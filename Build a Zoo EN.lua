@@ -228,61 +228,65 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (เต็มกรอบซ้าย)
+-- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
 ----------------------------------------------------------------
 do
-    local old = mainGui:FindFirstChild("UFOX_HomeBtn"); 
+    -- ลบของเก่าถ้ามี
+    local old = left:FindFirstChild("UFOX_HomeBtn")
     if old then old:Destroy() end
 
-    local btnHome = Instance.new("TextButton")
-    btnHome.Name = "UFOX_HomeBtn"
-    btnHome.Parent = left         -- คราวนี้กลับมาอยู่ใน left ได้เลย
-    btnHome.AutoButtonColor = false
-    btnHome.Size = UDim2.new(1,-12,0,44) -- กินเต็มกรอบซ้าย เหลือขอบนิดหน่อย
-    btnHome.Position = UDim2.new(0,6,0,12)
-    btnHome.BackgroundColor3 = SUB
-    btnHome.Font = Enum.Font.GothamBold
-    btnHome.TextSize = 15
-    btnHome.TextColor3 = FG
-    btnHome.Text = ""
-    btnHome.ClipsDescendants = true
+    -- ปุ่ม: ยาวแทบเต็มกรอบ (เหลือขอบซ้ายขวา 2px)
+    local btnHome = make("TextButton",{
+        Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
+        Size=UDim2.new(1,-4,0,48),      -- ✅ ยาวขึ้น
+        Position=UDim2.fromOffset(2,10),-- ✅ ลงล่างนิด/ชิดซ้ายนิด
+        BackgroundColor3=SUB, Font=Enum.Font.GothamBold,
+        TextSize=16, TextColor3=FG, Text="", ClipsDescendants=true
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{                 -- ✅ ขอบเขียวกลับมาและคมชัด
+            Color=ACCENT, Thickness=2, Transparency=0,
+            ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+        })
+    })
 
-    local corner = Instance.new("UICorner", btnHome)
-    corner.CornerRadius = UDim.new(0,10)
+    -- ไอคอน + ข้อความภายในปุ่ม
+    local row = make("Frame",{
+        Parent=btnHome, BackgroundTransparency=1,
+        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
+    },{
+        make("UIListLayout",{
+            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+            HorizontalAlignment=Enum.HorizontalAlignment.Left,
+            VerticalAlignment=Enum.VerticalAlignment.Center
+        })
+    })
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+        Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+        Font=Enum.Font.GothamBold, TextSize=16, Text="Home",
+        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    local stroke = Instance.new("UIStroke", btnHome)
-    stroke.Color = ACCENT
-    stroke.Thickness = 2
-    stroke.Transparency = 0
+    -- เอฟเฟกต์ hover เล็ก ๆ
+    btnHome.MouseEnter:Connect(function()
+        TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+    end)
+    btnHome.MouseLeave:Connect(function()
+        TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+    end)
 
-    -- row ข้างใน
-    local row = Instance.new("Frame", btnHome)
-    row.BackgroundTransparency = 1
-    row.Size = UDim2.new(1,-16,1,0)
-    row.Position = UDim2.new(0,8,0,0)
-
-    local layout = Instance.new("UIListLayout", row)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.Padding = UDim.new(0,8)
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    layout.VerticalAlignment = Enum.VerticalAlignment.Center
-
-    local icon = Instance.new("TextLabel", row)
-    icon.BackgroundTransparency = 1
-    icon.Size = UDim2.fromOffset(20,20)
-    icon.Font = Enum.Font.GothamBold
-    icon.TextSize = 16
-    icon.Text = "🏠"
-    icon.TextColor3 = FG
-
-    local label = Instance.new("TextLabel", row)
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.new(1,-36,1,0)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 15
-    label.Text = "Home"
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextColor3 = FG
+    -- คลิกเปิดหน้า Home (ถ้ามีฟังก์ชันภายนอก)
+    btnHome.MouseButton1Click:Connect(function()
+        if typeof(_G.UFO_OpenHomePage)=="function" then
+            pcall(_G.UFO_OpenHomePage)
+        else
+            -- กะพริบ content แจ้งผู้ใช้
+            TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
+            task.delay(0.12, function()
+                TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
+            end)
+        end
+    end)
 end
    
 ----------------------------------------------------------------
