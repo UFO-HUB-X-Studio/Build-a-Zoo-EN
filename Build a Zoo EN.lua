@@ -234,7 +234,7 @@ do
     local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
     local btnHome = make("TextButton",{
         Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(-30,50),
+        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(-100,100),
         BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
         Text="", ClipsDescendants=true
     },{
