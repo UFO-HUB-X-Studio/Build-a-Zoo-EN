@@ -228,64 +228,41 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (fix left + down)
+-- 🏠 HOME BUTTON (เลื่อนลง + ชิดซ้ายในกรอบ left)
 ----------------------------------------------------------------
 do
-    local old = left:FindFirstChild("UFOX_HomeBtn")
-    if old then old:Destroy() end
+    local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
+    local btnHome = make("TextButton",{
+        Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
+        Size=UDim2.new(1,-20,0,40), 
+        Position=UDim2.new(0,4,0,60), -- ❗ เลื่อนลง Y=60, ชิดซ้าย X=4
+        BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
+        Text="", ClipsDescendants=true
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{
+            Color=ACCENT, Thickness=2, Transparency=0,
+            ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+        })
+    })
 
-    local btnHome = Instance.new("TextButton")
-    btnHome.Name = "UFOX_HomeBtn"
-    btnHome.Parent = left
-    btnHome.AutoButtonColor = false
-    btnHome.Size = UDim2.new(1, -16, 0, 38)   -- กว้างพอดี
-    btnHome.Position = UDim2.fromOffset(-10000, 10000) -- 👈 ซ้าย 4px / ลง 40px
-    btnHome.BackgroundColor3 = SUB
-    btnHome.Font = Enum.Font.GothamBold
-    btnHome.TextSize = 15
-    btnHome.TextColor3 = FG
-    btnHome.Text = ""
-    btnHome.ClipsDescendants = true
+    local row = make("Frame",{
+        Parent=btnHome, BackgroundTransparency=1,
+        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
+    },{
+        make("UIListLayout",{
+            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+            HorizontalAlignment=Enum.HorizontalAlignment.Left,
+            VerticalAlignment=Enum.VerticalAlignment.Center
+        })
+    })
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+        Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+        Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
+        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    Instance.new("UICorner", btnHome).CornerRadius = UDim.new(0, 10)
-
-    local stroke = Instance.new("UIStroke", btnHome)
-    stroke.Color = ACCENT
-    stroke.Thickness = 2
-    stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-    local row = Instance.new("Frame")
-    row.BackgroundTransparency = 1
-    row.Parent = btnHome
-    row.Size = UDim2.new(1, -16, 1, 0)
-    row.Position = UDim2.new(0, 8, 0, 0)
-
-    local layout = Instance.new("UIListLayout", row)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.Padding = UDim.new(0, 8)
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    layout.VerticalAlignment = Enum.VerticalAlignment.Center
-
-    local ico = Instance.new("TextLabel")
-    ico.Parent = row
-    ico.BackgroundTransparency = 1
-    ico.Size = UDim2.fromOffset(20, 20)
-    ico.Font = Enum.Font.GothamBold
-    ico.TextSize = 16
-    ico.Text = "🏠"
-    ico.TextColor3 = FG
-
-    local lab = Instance.new("TextLabel")
-    lab.Parent = row
-    lab.BackgroundTransparency = 1
-    lab.Size = UDim2.new(1, -36, 1, 0)
-    lab.Font = Enum.Font.GothamBold
-    lab.TextSize = 15
-    lab.Text = "Home"
-    lab.TextXAlignment = Enum.TextXAlignment.Left
-    lab.TextColor3 = FG
-
+    -- เอฟเฟกต์เล็ก ๆ
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -294,7 +271,7 @@ do
     end)
 
     btnHome.MouseButton1Click:Connect(function()
-        if typeof(_G.UFO_OpenHomePage) == "function" then
+        if typeof(_G.UFO_OpenHomePage)=="function" then
             pcall(_G.UFO_OpenHomePage)
         else
             TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
@@ -304,7 +281,7 @@ do
         end
     end)
 end
-
+    
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick 20m) — drop-in replacement
 -- ใช้ VirtualUser + VirtualInputManager + Idled hook หลายชั้น
