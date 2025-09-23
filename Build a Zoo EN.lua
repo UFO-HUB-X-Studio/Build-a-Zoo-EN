@@ -228,55 +228,70 @@ local function make(class, props, kids)
     return o
 end
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (Auto Layout + ขอบเขียวคมชัด)
+-- 🏠 HOME BUTTON (fix position & clear green border)
+-- วางแทนบล็อคปุ่ม Home เดิมได้เลย
 ----------------------------------------------------------------
 do
-    local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
+    local old = left:FindFirstChild("UFOX_HomeBtn")
+    if old then old:Destroy() end
 
-    -- ตรวจว่ามี Layout ไหม ถ้าไม่มีให้สร้าง
-    if not left:FindFirstChild("UIListLayout") then
-        make("UIListLayout",{
-            Parent=left,
-            FillDirection=Enum.FillDirection.Vertical,
-            Padding=UDim.new(0,10),
-            HorizontalAlignment=Enum.HorizontalAlignment.Center,
-            VerticalAlignment=Enum.VerticalAlignment.Top,
-            SortOrder=Enum.SortOrder.LayoutOrder
-        })
-    end
+    -- ขยับจากขอบซ้าย 16px และลง 20px
+    -- กว้าง = เต็มความกว้าง - 32px (เผื่อซ้าย16 + ขวา16)
+    local btnHome = Instance.new("TextButton")
+    btnHome.Name = "UFOX_HomeBtn"
+    btnHome.Parent = left
+    btnHome.AutoButtonColor = false
+    btnHome.Size = UDim2.new(1, -32, 0, 38)   -- กว้างพอดีในกรอบ
+    btnHome.Position = UDim2.fromOffset(16, 20)
+    btnHome.BackgroundColor3 = SUB
+    btnHome.Font = Enum.Font.GothamBold
+    btnHome.TextSize = 15
+    btnHome.TextColor3 = FG
+    btnHome.Text = ""
+    btnHome.ClipsDescendants = true
 
-    local btnHome = make("TextButton",{
-        Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,40), -- กว้างเต็มช่อง -16px, สูง 40px
-        BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
-        Text="", ClipsDescendants=true,
-        LayoutOrder=1 -- ให้เรียงเป็นปุ่มแรก
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{
-            Color=ACCENT, Thickness=2, Transparency=0,
-            ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-        })
-    })
+    local corner = Instance.new("UICorner", btnHome)
+    corner.CornerRadius = UDim.new(0, 10)
 
-    local row = make("Frame",{
-        Parent=btnHome, BackgroundTransparency=1,
-        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
-    },{
-        make("UIListLayout",{
-            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-            HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Center
-        })
-    })
+    local stroke = Instance.new("UIStroke", btnHome)
+    stroke.Color = ACCENT
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG})
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
-        Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
-        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
+    -- แถวไอคอน + ข้อความ
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Parent = btnHome
+    row.Size = UDim2.new(1, -16, 1, 0)
+    row.Position = UDim2.new(0, 8, 0, 0)
 
-    -- เอฟเฟกต์ hover
+    local layout = Instance.new("UIListLayout", row)
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.Padding = UDim.new(0, 8)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+    local ico = Instance.new("TextLabel")
+    ico.Parent = row
+    ico.BackgroundTransparency = 1
+    ico.Size = UDim2.fromOffset(20, 20)
+    ico.Font = Enum.Font.GothamBold
+    ico.TextSize = 16
+    ico.Text = "🏠"
+    ico.TextColor3 = FG
+
+    local lab = Instance.new("TextLabel")
+    lab.Parent = row
+    lab.BackgroundTransparency = 1
+    lab.Size = UDim2.new(1, -36, 1, 0)
+    lab.Font = Enum.Font.GothamBold
+    lab.TextSize = 15
+    lab.Text = "Home"
+    lab.TextXAlignment = Enum.TextXAlignment.Left
+    lab.TextColor3 = FG
+
+    -- เอฟเฟกต์โฮเวอร์
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -284,8 +299,9 @@ do
         TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
     end)
 
+    -- การคลิก
     btnHome.MouseButton1Click:Connect(function()
-        if typeof(_G.UFO_OpenHomePage)=="function" then
+        if typeof(_G.UFO_OpenHomePage) == "function" then
             pcall(_G.UFO_OpenHomePage)
         else
             TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
