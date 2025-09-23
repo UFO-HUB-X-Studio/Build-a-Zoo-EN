@@ -227,17 +227,40 @@ local function make(class, props, kids)
     for _,c in ipairs(kids or {}) do c.Parent=o end
     return o
 end
-
 ----------------------------------------------------------------
--- 🏠 HOME BUTTON (ขอบเขียวคมชัด)
+-- 🏠 HOME BUTTON (จัดชิดซ้าย + ระยะห่างบนด้วย UIPadding)
 ----------------------------------------------------------------
 do
+    -- ใส่ Padding/Layout ให้คอลัมน์ซ้าย (ทำครั้งเดียว ถ้ามีแล้วจะข้าม)
+    if not left:FindFirstChild("UFOX_LeftPad") then
+        make("UIPadding", {
+            Name="UFOX_LeftPad", Parent=left,
+            PaddingTop = UDim.new(0,12),
+            PaddingBottom = UDim.new(0,8),
+            PaddingLeft = UDim.new(0,8),
+            PaddingRight = UDim.new(0,8),
+        })
+    end
+    if not left:FindFirstChild("UFOX_LeftList") then
+        make("UIListLayout", {
+            Name="UFOX_LeftList", Parent=left,
+            FillDirection = Enum.FillDirection.Vertical,
+            HorizontalAlignment = Enum.HorizontalAlignment.Stretch,
+            VerticalAlignment = Enum.VerticalAlignment.Top,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0,8)
+        })
+    end
+
     local old = left:FindFirstChild("UFOX_HomeBtn"); if old then old:Destroy() end
+
+    -- ใช้ LayoutOrder แทน Position เพื่อจัดตำแหน่งให้ตรงและคงที่
     local btnHome = make("TextButton",{
         Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,8),
-        BackgroundColor3=SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
-        Text="", ClipsDescendants=true
+        Size = UDim2.new(1, 0, 0, 38),   -- กว้างเต็มคอลัมน์ซ้าย (เว้นขอบด้วย UIPadding แล้ว)
+        BackgroundColor3 = SUB, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG,
+        Text="", ClipsDescendants=true,
+        LayoutOrder = 1                  -- อยากให้อยู่บนสุด ใช้เลขน้อยสุด
     },{
         make("UICorner",{CornerRadius=UDim.new(0,10)}),
         make("UIStroke",{
@@ -246,6 +269,7 @@ do
         })
     })
 
+    -- แถวไอคอน + ข้อความ (ขยับเข้าไป 8px ให้ขอบเขียวคมชัด)
     local row = make("Frame",{
         Parent=btnHome, BackgroundTransparency=1,
         Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
@@ -262,7 +286,7 @@ do
         Font=Enum.Font.GothamBold, TextSize=15, Text="Home",
         TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    -- เอฟเฟกต์เล็ก ๆ
+    -- เอฟเฟกต์โฮเวอร์เล็ก ๆ
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -274,7 +298,6 @@ do
         if typeof(_G.UFO_OpenHomePage)=="function" then
             pcall(_G.UFO_OpenHomePage)
         else
-            -- ถ้ายังไม่มีหน้าอื่น ก็แค่กะพริบ content ให้รู้ว่ากดแล้ว
             TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
             task.delay(0.12, function()
                 TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
@@ -282,6 +305,7 @@ do
         end
     end)
 end
+
 
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick 20m) — drop-in replacement
