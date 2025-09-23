@@ -567,107 +567,15 @@ end
 local y = rowAFK and (rowAFK.Position.Y.Offset + rowAFK.Size.Y.Offset + 8) or 10
 buildAutoClaimRow(y)
 ----------------------------------------------------------------
--- 🖐️ AUTO HATCH (Tap the real GUI button like a finger)
--- - ค้นปุ่มที่มี Text = "Hatch" (ไม่สนตัวพิมพ์ใหญ่/เล็ก)
--- - แตะด้วย VirtualInputManager (กด/ปล่อยเมาส์ที่ตำแหน่งปุ่ม)
--- - สำรอง: :Activate(), firesignal(...) เผื่อเกมดัก input
+-- 🥚 AUTO HATCH (ใช้ shared.LocalQucikHatch ของเกมโดยตรง + fallback)
+-- วางบล็อกนี้ในไฟล์ UI หลัก (มี make, TS, ACCENT, SUB, FG, content แล้ว)
 ----------------------------------------------------------------
-local Vim   = game:GetService("VirtualInputManager")
-local PLR   = game:GetService("Players").LocalPlayer
-local CG    = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RS      = game:GetService("ReplicatedStorage")
+local LP      = Players.LocalPlayer
 local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- ==== ยูทิล ====
-local function downUpAtScreen(x, y)
-    pcall(function()
-        Vim:SendMouseMove(x, y)
-        Vim:SendMouseButtonEvent(x, y, 0, true,  game, 0)  -- down (left=0)
-        task.wait(0.03)
-        Vim:SendMouseButtonEvent(x, y, 0, false, game, 0)  -- up
-    end)
-end
-
-local function centerOf(guiObj)
-    local p = guiObj.AbsolutePosition
-    local s = guiObj.AbsoluteSize
-    return p.X + s.X/2, p.Y + s.Y/2
-end
-
-local function isHatchButton(obj)
-    if not (obj and obj:IsA("GuiButton") and obj.Visible) then return false end
-    -- ข้ามปุ่มที่ถูกปิดทับ/โปร่งจนคลิกไม่ได้
-    local a = obj.Active ~= false
-    local t = tostring(obj.Text or "")
-    if a and #t > 0 and t:lower():find("hatch") then
-        return true
-    end
-    -- เผื่อเป็น ImageButton ที่ไม่มีข้อความ แต่มี label ลูก
-    for _,c in ipairs(obj:GetDescendants()) do
-        if c:IsA("TextLabel") or c:IsA("TextButton") then
-            local tt = tostring(c.Text or "")
-            if #tt>0 and tt:lower():find("hatch") then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-local function scanForHatchButtons()
-    local results = {}
-
-    -- 1) gethui() ถ้ามี
-    if gethui then
-        local ok,ui = pcall(gethui)
-        if ok and ui then
-            for _,d in ipairs(ui:GetDescendants()) do
-                if isHatchButton(d) then table.insert(results, d) end
-            end
-        end
-    end
-
-    -- 2) CoreGui
-    for _,d in ipairs(CG:GetDescendants()) do
-        if isHatchButton(d) then table.insert(results, d) end
-    end
-
-    -- 3) PlayerGui
-    local pg = PLR:FindFirstChildOfClass("PlayerGui")
-    if pg then
-        for _,d in ipairs(pg:GetDescendants()) do
-            if isHatchButton(d) then table.insert(results, d) end
-        end
-    end
-
-    return results
-end
-
-local function tryTapButton(btn)
-    local ok=false
-    -- วิธี A: VirtualInput (เลียนิ้ว)
-    local x,y = centerOf(btn)
-    downUpAtScreen(x,y)
-    ok=true
-
-    -- วิธี B (สำรอง): ส่งสัญญาณ event ของตัวปุ่ม
-    pcall(function()
-        if typeof(firesignal)=="function" then
-            firesignal(btn.MouseButton1Down)
-            firesignal(btn.MouseButton1Click)
-            firesignal(btn.MouseButton1Up)
-        end
-    end)
-
-    -- วิธี C (สำรอง): Roblox GUI activate
-    pcall(function()
-        if btn.Activate then btn:Activate() end
-        if btn.CaptureFocus then btn:CaptureFocus(); btn:ReleaseFocus() end
-    end)
-
-    return ok
-end
-
--- ==== UI สวิตช์เล็ก วางต่อท้ายแถวใน content ====
+-- หา y ต่อจากแถวสุดท้ายใน content
 local function nextRowY(pad)
     pad = pad or 8
     local y = 10
@@ -681,12 +589,12 @@ local function nextRowY(pad)
 end
 
 -- ลบของเก่าถ้ามี
-local old = content:FindFirstChild("RowAutoHatchTap")
+local old = content:FindFirstChild("RowAutoHatch")
 if old then old:Destroy() end
 
--- Row กล่อง
+-- กล่องแถว
 local row = Instance.new("Frame")
-row.Name = "RowAutoHatchTap"
+row.Name = "RowAutoHatch"
 row.Parent = content
 row.BackgroundColor3 = Color3.fromRGB(18,18,18)
 row.Size = UDim2.new(1,-20,0,44)
@@ -694,7 +602,7 @@ row.Position = UDim2.fromOffset(10, nextRowY(8))
 Instance.new("UICorner", row).CornerRadius = UDim.new(0,10)
 local st = Instance.new("UIStroke", row); st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
 
--- ชื่อ
+-- ป้ายชื่อ
 local lb = Instance.new("TextLabel")
 lb.Parent = row
 lb.BackgroundTransparency = 1
@@ -702,11 +610,11 @@ lb.Font = Enum.Font.GothamBold
 lb.TextSize = 15
 lb.TextXAlignment = Enum.TextXAlignment.Left
 lb.TextColor3 = FG
-lb.Text = "Auto Hatch (Tap) — OFF"
+lb.Text = "Auto Hatch (OFF)"
 lb.Position = UDim2.new(0,12,0,0)
 lb.Size = UDim2.new(1,-150,1,0)
 
--- สวิตช์เล็ก 60x24 + ปุ่มกลม 20
+-- สวิตช์เล็ก 60x24
 local sw = Instance.new("TextButton")
 sw.Name = "Switch"
 sw.Parent = row
@@ -714,138 +622,127 @@ sw.AutoButtonColor = false
 sw.Text = ""
 sw.AnchorPoint = Vector2.new(1,0.5)
 sw.Position = UDim2.new(1,-12,0.5,0)
-----------------------------------------------------------------
--- 🖐️ AUTO HATCH (Finger Tap Version — 100% try all cases)
-----------------------------------------------------------------
-local Vim   = game:GetService("VirtualInputManager")
-local PLR   = game:GetService("Players").LocalPlayer
-local CG    = game:GetService("CoreGui")
-local TweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+sw.Size = UDim2.fromOffset(60,24)
+sw.BackgroundColor3 = SUB
+Instance.new("UICorner", sw).CornerRadius = UDim.new(1,0)
+local st2 = Instance.new("UIStroke", sw); st2.Color = ACCENT; st2.Thickness = 2; st2.Transparency = 0.05
 
--- ===== Utils =====
-local function downUpAt(x,y)
-    pcall(function()
-        Vim:SendMouseMove(x,y)
-        Vim:SendMouseButtonEvent(x,y,0,true,game,0)
-        task.wait(0.05)
-        Vim:SendMouseButtonEvent(x,y,0,false,game,0)
-    end)
+local knob = Instance.new("Frame")
+knob.Parent = sw
+knob.Size = UDim2.fromOffset(20,20)
+knob.Position = UDim2.new(0,2,0,2)
+knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
+knob.BorderSizePixel = 0
+Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+----------------------------------------------------------------
+-- Engine
+----------------------------------------------------------------
+local ON = false
+local INTERVAL = 0.5      -- หน่วงระหว่างรอบสแกน/กด
+local BURST    = 2        -- กดย้ำต่อปุ่ม (กันหลุดอินพุต)
+local loop
+
+-- ตรวจว่าเป็นไข่ของเรา (อิงจากสคริปต์ decompile: script.Target.Value มี Attribute UserId)
+local function isOwnedEgg(inst)
+    if typeof(inst) ~= "Instance" then return false end
+    -- ไข่มักเป็น BasePart/Attachment/Model มี Attribute EggType + ลูก RF
+    local hasEggAttr = pcall(function() return inst:GetAttribute("EggType") ~= nil end)
+    if not hasEggAttr then return false end
+    if inst:GetAttribute("UserId") and inst:GetAttribute("UserId") ~= LP.UserId then
+        return false
+    end
+    -- ต้องมีลูก "RF" เป็น RemoteFunction
+    local rf = inst:FindFirstChild("RF")
+    if not (rf and rf:IsA("RemoteFunction")) then return false end
+    return true
 end
-local function center(gui)
-    local p,s = gui.AbsolutePosition, gui.AbsoluteSize
-    return p.X+s.X/2, p.Y+s.Y/2
-end
-local function isHatchBtn(obj)
-    if not (obj and obj.Visible) then return false end
-    if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-        if obj.Text and obj.Text:lower():find("hatch") then return true end
-        for _,c in ipairs(obj:GetDescendants()) do
-            if (c:IsA("TextLabel") or c:IsA("TextButton")) and c.Text and c.Text:lower():find("hatch") then
-                return true
-            end
+
+-- หาไข่ทั้งหมดที่เป็นของเรา
+local function findAllOwnedEggs()
+    local eggs = {}
+    -- ไข่ตัวจริงที่สคริปต์แนบ ProximityPrompt จะอยู่ที่ Value_upvr (ชิ้นส่วนนั้นเลย)
+    -- เราจะสแกน workspace กว้าง ๆ แต่กรองด้วย EggType / RF
+    for _,desc in ipairs(workspace:GetDescendants()) do
+        local ok = false
+        if desc:IsA("BasePart") or desc:IsA("Attachment") or desc:IsA("Model") then
+            if isOwnedEgg(desc) then ok = true end
         end
+        if ok then table.insert(eggs, desc) end
+    end
+    return eggs
+end
+
+-- วิธี 1 (ดีที่สุด): ใช้ฟังก์ชันของเกมเอง
+local function tryLocalQuickHatch()
+    local f = rawget(shared, "LocalQucikHatch") -- สะกดตามเกม
+    if type(f) == "function" then
+        -- เปิด ProximityPrompt สั้น ๆ (เกมเองจะจัดการ RF และ cooldown)
+        for i=1,BURST do
+            local ok = pcall(f)
+            task.wait(0.05)
+        end
+        return true
     end
     return false
 end
-local function findHatch()
-    local all = {}
-    -- gethui
-    if gethui then
-        local ok,ui = pcall(gethui)
-        if ok and ui then
-            for _,d in ipairs(ui:GetDescendants()) do
-                if isHatchBtn(d) then table.insert(all,d) end
+
+-- วิธี 2: fire proximity prompt ถ้ามี
+local function tryFirePrompt()
+    local prompt = rawget(shared, "LocalHatchProximity")
+    if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled then
+        if typeof(fireproximityprompt) == "function" then
+            for i=1,BURST do
+                pcall(fireproximityprompt, prompt)
+                task.wait(0.05)
             end
+            return true
         end
+        -- บาง executor ไม่มี fireproximityprompt → กดคีย์ไม่ได้จาก client
     end
-    -- CoreGui
-    for _,d in ipairs(CG:GetDescendants()) do
-        if isHatchBtn(d) then table.insert(all,d) end
-    end
-    -- PlayerGui
-    local pg = PLR:FindFirstChildOfClass("PlayerGui")
-    if pg then
-        for _,d in ipairs(pg:GetDescendants()) do
-            if isHatchBtn(d) then table.insert(all,d) end
-        end
-    end
-    return all
-end
-local function tap(btn)
-    local x,y=center(btn)
-    downUpAt(x,y)
-    -- สำรอง firesignal
-    pcall(function()
-        if firesignal then
-            firesignal(btn.MouseButton1Down)
-            firesignal(btn.MouseButton1Click)
-            firesignal(btn.MouseButton1Up)
-        end
-    end)
-    -- สำรอง Activate
-    pcall(function() if btn.Activate then btn:Activate() end end)
+    return false
 end
 
--- ===== Add UI row =====
-local function nextRowY()
-    local y=10
-    for _,c in ipairs(content:GetChildren()) do
-        if c:IsA("Frame") then
-            local yo=c.Position.Y.Offset+c.Size.Y.Offset
-            if yo+8>y then y=yo+8 end
+-- วิธี 3: ยิง RF:InvokeServer("Hatch") โดยตรงกับไข่ทุกใบของเรา
+local function tryInvokeRFDirect()
+    local eggs = findAllOwnedEggs()
+    if #eggs == 0 then return false end
+    local did = false
+    for _,egg in ipairs(eggs) do
+        local rf = egg:FindFirstChild("RF")
+        if rf and rf:IsA("RemoteFunction") then
+            -- ยิงย้ำเล็กน้อย
+            for i=1,BURST do
+                pcall(function() rf:InvokeServer("Hatch") end)
+                task.wait(0.05)
+            end
+            did = true
         end
     end
-    return y
+    return did
 end
 
-local old=content:FindFirstChild("RowAutoHatchFinal"); if old then old:Destroy() end
-local row=Instance.new("Frame")
-row.Name="RowAutoHatchFinal"; row.Parent=content
-row.BackgroundColor3=Color3.fromRGB(18,18,18)
-row.Size=UDim2.new(1,-20,0,44); row.Position=UDim2.fromOffset(10,nextRowY())
-Instance.new("UICorner",row).CornerRadius=UDim.new(0,10)
-local st=Instance.new("UIStroke",row); st.Color=ACCENT; st.Thickness=2; st.Transparency=0.05
-
-local lb=Instance.new("TextLabel",row); lb.BackgroundTransparency=1
-lb.Font=Enum.Font.GothamBold; lb.TextSize=15; lb.TextColor3=FG
-lb.TextXAlignment=Enum.TextXAlignment.Left; lb.Text="Auto Hatch (OFF)"
-lb.Size=UDim2.new(1,-150,1,0); lb.Position=UDim2.new(0,12,0,0)
-
-local sw=Instance.new("TextButton",row); sw.AutoButtonColor=false; sw.Text=""
-sw.AnchorPoint=Vector2.new(1,0.5); sw.Position=UDim2.new(1,-12,0.5,0)
-sw.Size=UDim2.fromOffset(60,24); sw.BackgroundColor3=SUB
-Instance.new("UICorner",sw).CornerRadius=UDim.new(1,0)
-Instance.new("UIStroke",sw).Color=ACCENT
-
-local knob=Instance.new("Frame",sw); knob.Size=UDim2.fromOffset(20,20)
-knob.Position=UDim2.new(0,2,0,2); knob.BackgroundColor3=Color3.fromRGB(210,60,60)
-Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
-
--- ===== Engine =====
-local ON=false
-local INTERVAL=0.5
-local BURST=2
-local loop
-local function setUI(b)
-    if b then
-        lb.Text="Auto Hatch (ON)"
-        TS:Create(knob,TweenFast,{Position=UDim2.new(1,-22,0,2),BackgroundColor3=ACCENT}):Play()
-        TS:Create(sw,TweenFast,{BackgroundColor3=Color3.fromRGB(28,60,40)}):Play()
+local function setUI(state)
+    if state then
+        lb.Text = "Auto Hatch (ON)"
+        TS:Create(sw,   TweenFast, {BackgroundColor3 = Color3.fromRGB(28,60,40)}):Play()
+        TS:Create(knob, TweenFast, {Position = UDim2.new(1,-22,0,2), BackgroundColor3 = ACCENT}):Play()
     else
-        lb.Text="Auto Hatch (OFF)"
-        TS:Create(knob,TweenFast,{Position=UDim2.new(0,2,0,2),BackgroundColor3=Color3.fromRGB(210,60,60)}):Play()
-        TS:Create(sw,TweenFast,{BackgroundColor3=SUB}):Play()
+        lb.Text = "Auto Hatch (OFF)"
+        TS:Create(sw,   TweenFast, {BackgroundColor3 = SUB}):Play()
+        TS:Create(knob, TweenFast, {Position = UDim2.new(0,2,0,2),  BackgroundColor3 = Color3.fromRGB(210,60,60)}):Play()
     end
 end
-local function start()
+
+local function startLoop()
     if ON then return end
-    ON=true
-    loop=task.spawn(function()
+    ON = true
+    loop = task.spawn(function()
         while ON do
-            local btns=findHatch()
-            if #btns>0 then
-                for _,b in ipairs(btns) do
-                    for i=1,BURST do tap(b); task.wait(0.05) end
+            -- ลำดับความสำคัญ: ฟังก์ชันของเกม → ProximityPrompt → RF ตรง
+            if not tryLocalQuickHatch() then
+                if not tryFirePrompt() then
+                    tryInvokeRFDirect()
                 end
             end
             task.wait(INTERVAL)
@@ -853,10 +750,21 @@ local function start()
     end)
     setUI(true)
 end
-local function stop()
-    ON=false
+
+local function stopLoop()
+    if not ON then return end
+    ON = false
     setUI(false)
 end
-sw.MouseButton1Click:Connect(function() if ON then stop() else start() end end)
 
+sw.MouseButton1Click:Connect(function()
+    if ON then stopLoop() else startLoop() end
+end)
+
+-- ให้เรียกจากภายนอกได้
+_G.UFO_HATCH_Start = startLoop
+_G.UFO_HATCH_Stop  = stopLoop
+_G.UFO_HATCH_Set   = function(b) if b then startLoop() else stopLoop() end end
+
+-- เริ่มต้นปิด
 setUI(false)
