@@ -244,80 +244,92 @@ end
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
--- 🏠 HOME PAGE — header คงที่ + body เลื่อนขึ้นลง + ขอบพอดี
+-- HOME PAGE: หัวข้อเหมือน Shop + ขยับลง + เลื่อนขึ้น/ลงได้จริง
+-- ใช้กับปุ่ม/แถวเดิมของคุณ (จะย้ายเฉพาะ Frame ที่ชื่อขึ้นต้นด้วย "UFOX_Row")
 ----------------------------------------------------------------
-local PAGE_PAD = 12      -- ระยะห่างจากกรอบเขียวรอบๆ
-local BODY_GAP = 8       -- ช่องไฟระหว่างแถวใน body
-local HEADER_H = 32
+local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
+local SUB    = SUB    or Color3.fromRGB(22,22,22)
+local FG     = FG     or Color3.fromRGB(235,235,235)
+local TS     = TS or game:GetService("TweenService")
 
-local function createHomePage()
-    local old = content:FindFirstChild("pgHome")
-    if old then old:Destroy() end
+local function make(c,p,k) local o=Instance.new(c) for a,b in pairs(p or {}) do o[a]=b end
+  for _,ch in ipairs(k or {}) do ch.Parent=o end return o end
 
-    -- ✅ มี margin รอบๆ (ไม่ชิดขอบเขียว)
-    local pgHome = make("Frame",{
-        Name="pgHome", Parent=content, BackgroundTransparency=1,
-        Size=UDim2.new(1, -PAGE_PAD*2, 1, -PAGE_PAD*2),
-        Position=UDim2.new(0, PAGE_PAD, 0, PAGE_PAD),
-        Visible=false
-    },{})
+-- ลบหน้า Home เก่าแล้วสร้างใหม่ (กันซ้ำ)
+local old = content:FindFirstChild("pgHome"); if old then old:Destroy() end
+local pgHome = make("Frame",{
+  Name="pgHome", Parent=content, BackgroundTransparency=1,
+  Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
+},{})
 
-    -- ✅ Header อยู่บนสุด ไม่เลื่อน
-    make("TextLabel",{
-        Name="Header", Parent=pgHome, BackgroundTransparency=1,
-        Size=UDim2.new(1,0,0,HEADER_H), Position=UDim2.new(0,0,0,0),
-        Font=Enum.Font.GothamBold, TextSize=22,
-        Text="🏠 Home", TextColor3=Color3.fromRGB(240,240,240),
-        TextXAlignment=Enum.TextXAlignment.Left
-    },{})
+-- ===== Header เหมือน Shop (ไอคอน + ชื่อ) =====
+local HEADER_H = 28
+local header = make("Frame",{
+  Name="Header", Parent=pgHome, BackgroundTransparency=1,
+  Size=UDim2.new(1,0,0,HEADER_H)
+},{
+  make("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,8),
+    VerticalAlignment=Enum.VerticalAlignment.Center})
+})
+make("TextLabel",{
+  Parent=header, BackgroundTransparency=1, Size=UDim2.fromOffset(24,24),
+  Font=Enum.Font.GothamBold, TextSize=20, Text="🏠", TextColor3=FG
+},{})
+make("TextLabel",{
+  Parent=header, BackgroundTransparency=1, Size=UDim2.new(1,-32,1,0),
+  Font=Enum.Font.GothamBold, TextSize=20, Text="Home",
+  TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG
+},{})
 
-    -- ✅ Body เลื่อนขึ้นลงได้
-    local body = make("ScrollingFrame",{
-        Name="Body", Parent=pgHome, BackgroundTransparency=1,
-        Size=UDim2.new(1,0,1,-(HEADER_H+4)), Position=UDim2.new(0,0,0,HEADER_H+4),
-        AutomaticCanvasSize=Enum.AutomaticSize.Y, CanvasSize=UDim2.new(0,0,0,0),
-        ScrollBarThickness=6, ScrollBarImageTransparency=0.15, ClipsDescendants=true
-    },{
-        make("UIListLayout",{
-            FillDirection=Enum.FillDirection.Vertical,
-            Padding=UDim.new(0,BODY_GAP), SortOrder=Enum.SortOrder.LayoutOrder
-        }),
-        make("UIPadding",{
-            PaddingTop=UDim.new(0,BODY_GAP), PaddingBottom=UDim.new(0,BODY_GAP),
-            PaddingLeft=UDim.new(0,BODY_GAP), PaddingRight=UDim.new(0,BODY_GAP)
-        })
-    })
+-- ===== พื้นที่เนื้อหาเลื่อนขึ้น/ลงได้จริง =====
+local body = make("ScrollingFrame",{
+  Name="Body", Parent=pgHome, BackgroundTransparency=1,
+  Size=UDim2.new(1,0,1,-(HEADER_H+4)), Position=UDim2.new(0,0,0,HEADER_H+4),
+  AutomaticCanvasSize=Enum.AutomaticSize.Y, CanvasSize=UDim2.new(0,0,0,0),
+  ScrollBarThickness=6, ScrollBarImageTransparency=0.15, ClipsDescendants=true
+},{
+  make("UIListLayout",{FillDirection=Enum.FillDirection.Vertical,SortOrder=Enum.SortOrder.LayoutOrder,
+    Padding=UDim.new(0,10)}),
+  make("UIPadding",{PaddingTop=UDim.new(0,16),PaddingBottom=UDim.new(0,12),
+    PaddingLeft=UDim.new(0,10),PaddingRight=UDim.new(0,10)})
+})
 
-    -- ✅ ย้ายแถวระบบเดิมลง body และปรับความกว้างให้เต็ม (ชิดขอบสวย)
-    local moveNames = {"UFOX_RowAFK","UFOX_RowCollect","UFOX_RowEgg"}
-    for _,nm in ipairs(moveNames) do
-        local it = content:FindFirstChild(nm)
-        if it and it:IsA("GuiObject") then
-            it.Parent = body
-            it.Size = UDim2.new(1, 0, 0, it.Size.Y.Offset > 0 and it.Size.Y.Offset or 44)
-        end
+-- ===== บังคับสไตล์แถว (ขอบเขียวคม + สูงเท่ากัน) =====
+local function styleRow(row, order)
+  if not row then return end
+  row.BackgroundColor3 = Color3.fromRGB(18,18,18)
+  row.Size = UDim2.new(1,0,0,56)                 -- สูงเท่ากันทุกแถว
+  row.LayoutOrder = order or 1
+  if not row:FindFirstChildWhichIsA("UICorner") then
+    make("UICorner",{Parent=row,CornerRadius=UDim.new(0,10)},{})
+  end
+  -- รีเซ็ต/บังคับขอบเขียว
+  for _,c in ipairs(row:GetChildren()) do if c:IsA("UIStroke") then c:Destroy() end end
+  make("UIStroke",{
+    Parent=row, Color=ACCENT, Thickness=2, Transparency=0,
+    ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
+  },{})
+end
+
+-- ===== ย้าย “แถวระบบ” เดิมเข้ามาใน ScrollingFrame =====
+-- เกณฑ์: ชื่อขึ้นต้นด้วย "UFOX_Row" และเป็น Frame ใต้ content
+local order = 1
+for _,ch in ipairs(content:GetChildren()) do
+  if ch:IsA("Frame") and typeof(ch.Name)=="string" and ch.Name:match("^UFOX_Row") then
+    ch.Parent = body
+    styleRow(ch, order); order += 1
+  end
+end
+
+-- ถ้ามีการสร้างแถวเข้ามาใหม่ภายหลัง → จะถูกดึงเข้ามาและจัดสไตล์ให้อัตโนมัติ
+if not content:GetAttribute("UFOX_HomeAutoHook") then
+  content:SetAttribute("UFOX_HomeAutoHook", true)
+  content.ChildAdded:Connect(function(ch)
+    if ch:IsA("Frame") and ch.Name:match("^UFOX_Row") then
+      task.wait() ch.Parent = body; styleRow(ch, order); order += 1
     end
-
-    return pgHome
+  end)
 end
-
--- สร้างหน้า Home ใหม่ (พอดีกับกรอบ)
-local pgHome = createHomePage()
-
--- Hook ปุ่ม Home ให้แสดงหน้า Home และซ่อนหน้าที่เหลือ
-local function showPage(name)
-    if content:FindFirstChild("pgHome")   then content.pgHome.Visible   = (name=="Home")   end
-    if content:FindFirstChild("pgShop")   then content.pgShop.Visible   = (name=="Shop")   end
-    if content:FindFirstChild("pgFishing")then content.pgFishing.Visible= (name=="Fishing")end
-end
-
-local btnHome = left:FindFirstChild("UFOX_HomeBtn")
-if btnHome then
-    btnHome.MouseButton1Click:Connect(function() showPage("Home") end)
-end
-
--- เปิดเริ่มต้นให้เห็นหน้า Home
-showPage("Home")
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick) + DARK OVERLAY (Roblox Image ID)
 -- - กันเตะ: VirtualUser + VirtualInputManager + Idled hook
