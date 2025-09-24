@@ -204,7 +204,45 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
+-- ===== Force order: Home(1) -> Shop(2) -> Fishing(3) =====
+local function forceLeftOrder()
+    if not left then return end
 
+    -- ensure list exists and uses LayoutOrder
+    local list = left:FindFirstChildOfClass("UIListLayout")
+    if not list then
+        list = Instance.new("UIListLayout")
+        list.Parent = left
+    end
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.Padding = UDim.new(0, 10)
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    list.VerticalAlignment   = Enum.VerticalAlignment.Top
+    list.SortOrder = Enum.SortOrder.LayoutOrder  -- สำคัญ!
+
+    -- fetch our buttons
+    local btnHome    = left:FindFirstChild("UFOX_HomeBtn")
+    local btnShop    = left:FindFirstChild("UFOX_ShopBtn")
+    local btnFishing = left:FindFirstChild("UFOX_FishingBtn")
+
+    -- set layout orders
+    if btnHome    then btnHome.LayoutOrder    = 1 end
+    if btnShop    then btnShop.LayoutOrder    = 2 end
+    if btnFishing then btnFishing.LayoutOrder = 3 end
+
+    -- push other stray children (ถ้ามี) ให้ไปท้ายสุด
+    local bump = 100
+    for _,child in ipairs(left:GetChildren()) do
+        if child:IsA("GuiObject") and not (child == btnHome or child == btnShop or child == btnFishing or child:IsA("UIListLayout") or child:IsA("UICorner")) then
+            child.LayoutOrder = bump
+            bump += 1
+        end
+    end
+end
+
+-- เรียกทันที + เรียกซ้ำเมื่อมีการเพิ่มของใหม่
+forceLeftOrder()
+left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
 -- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
 ----------------------------------------------------------------
