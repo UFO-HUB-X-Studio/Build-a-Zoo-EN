@@ -243,94 +243,88 @@ end
 -- เรียกทันที + เรียกซ้ำเมื่อมีการเพิ่มของใหม่
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
---[[ ================== UFOX HOME - FULL DROP (ALL-IN-ONE) ==================
-- Header "🏠 Home" + white tag (สไตล์เดียวกับหน้า Shop)
-- ScrollingFrame เลื่อนขึ้นลงได้จริง
-- ดึงแถวระบบ AFK / Auto-Claim / Auto-Egg ที่มีอยู่ → จัดลงเป็นคอลัมน์
-- ขยายความกว้างให้เต็มกรอบ + ใส่ขอบสีเขียวคมชัดแบบถาวร
-=========================================================================== ]]
+--[[ ================== UFOX HOME QUICK FIX (DROP-IN) ==================
+- หาเพจที่มี AFK และกำลัง Visible -> ใส่หัวข้อ Home + แถบขาว
+- สร้าง ScrollingFrame ใต้หัวข้อ แล้วย้ายแถวระบบทั้งหมดเข้าไป
+- ขยับระยะลงให้ไม่ชิดขอบ และบังคับขอบสีเขียวคมชัด
+===================================================================== ]]
 
 do
-    local TS  = TS or game:GetService("TweenService")
-    local CG  = game:GetService("CoreGui")
+    local TS = TS or game:GetService("TweenService")
+    local CoreGui = game:GetService("CoreGui")
     local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
     local FG     = FG     or Color3.fromRGB(235,235,235)
 
-    -- หา content/frame หลักแบบยืดหยุ่น
-    local function findWithRetry(fn, tmo)
-        local t0 = os.clock()
-        while os.clock() - t0 < (tmo or 2.5) do
-            local v = fn()
-            if v then return v end
-            task.wait(0.05)
+    -- หา content/page ที่กำลังใช้ (มองหาหน้าไหนมีคำว่า AFK)
+    local function findActivePage()
+        local function hasAFK(f)
+            for _,d in ipairs(f:GetDescendants()) do
+                if d:IsA("TextLabel") and d.Text and d.Text:lower():find("afk",1,true) then
+                    return true
+                end
+            end
+            return false
         end
-    end
-
-    local content = content or findWithRetry(function()
-        if typeof(mainGui)=="Instance" then
-            for _,d in ipairs(mainGui:GetDescendants()) do
-                if d.Name:lower()=="content" and d:IsA("Frame") then return d end
+        local roots = {}
+        if typeof(content)=="Instance" then table.insert(roots, content) end
+        if typeof(mainGui)=="Instance" then table.insert(roots, mainGui) end
+        for _,g in ipairs(CoreGui:GetChildren()) do
+            if g:IsA("ScreenGui") then table.insert(roots, g) end
+        end
+        for _,r in ipairs(roots) do
+            for _,c in ipairs(r:GetDescendants()) do
+                if c:IsA("Frame") and c.Visible and hasAFK(c) then
+                    return c
+                end
             end
         end
-        for _,g in ipairs(CG:GetChildren()) do
-            if g:IsA("ScreenGui") then
-                local c = g:FindFirstChild("Content", true)
-                if c and c:IsA("Frame") then return c end
-            end
-        end
-        return nil
-    end, 3)
+    end
+    local page = findActivePage()
+    if not page then warn("[UFOX] ไม่พบหน้า Home ที่มี AFK"); return end
 
-    if not content then
-        warn("[UFOX HOME FULL] content not found")
-        return
+    -- ลบของเก่าที่เราสร้างไว้ (กันซ้อน)
+    for _,n in ipairs({"UFOX_HomeHeader","UFOX_HomeTag","UFOX_ScrollWrap"}) do
+        local k = page:FindFirstChild(n); if k then k:Destroy() end
     end
 
-    -- หน้า Home: สร้างถ้ายังไม่มี / เคลียร์ของเก่าที่เราสร้างไว้
-    local pgHome = content:FindFirstChild("pgHome")
-    if not pgHome then
-        pgHome = Instance.new("Frame")
-        pgHome.Name = "pgHome"
-        pgHome.BackgroundTransparency = 1
-        pgHome.Size = UDim2.new(1,-20,1,-20)
-        pgHome.Position = UDim2.fromOffset(10,10)
-        pgHome.Visible = true
-        pgHome.Parent = content
-    end
-    for _,n in ipairs({"HomeHeader","HomeTag","sfHome"}) do
-        local old = pgHome:FindFirstChild(n); if old then old:Destroy() end
-    end
+    -- หาหรือสร้างคอนเทนเนอร์ที่เราจะย้ายแถวเข้าไป (โครงสร้างใหม่)
+    local wrap = Instance.new("Frame")
+    wrap.Name = "UFOX_ScrollWrap"
+    wrap.BackgroundTransparency = 1
+    wrap.Size = UDim2.new(1,-20,1,-16)
+    wrap.Position = UDim2.fromOffset(10,10)
+    wrap.Parent = page
 
-    -- หัวข้อ Home + แถบขาว (เหมือนหน้า Shop)
+    -- Header "Home"
     local header = Instance.new("TextLabel")
-    header.Name = "HomeHeader"
-    header.Parent = pgHome
+    header.Name = "UFOX_HomeHeader"
+    header.Parent = wrap
     header.BackgroundTransparency = 1
     header.Font = Enum.Font.GothamBold
     header.TextSize = 20
     header.TextColor3 = FG
     header.TextXAlignment = Enum.TextXAlignment.Left
     header.Text = "🏠  Home"
-    header.Size = UDim2.new(1,-20,0,30)
-    header.Position = UDim2.fromOffset(10,6)
+    header.Size = UDim2.new(1,0,0,28)
+    header.Position = UDim2.fromOffset(0,0)
 
     local underline = Instance.new("Frame")
-    underline.Name = "Underline"
     underline.Parent = header
     underline.AnchorPoint = Vector2.new(0,1)
     underline.Position = UDim2.new(0,0,1,2)
     underline.Size = UDim2.new(1,0,0,2)
     underline.BackgroundColor3 = ACCENT
-    underline.BorderSizePixel = 0
     underline.BackgroundTransparency = 0.35
+    underline.BorderSizePixel = 0
 
+    -- ป้ายขาวเล็กเหมือนหน้า Shop
     local tag = Instance.new("Frame")
-    tag.Name = "HomeTag"
-    tag.Parent = pgHome
+    tag.Name = "UFOX_HomeTag"
+    tag.Parent = wrap
     tag.BackgroundColor3 = Color3.fromRGB(245,245,245)
     tag.Size = UDim2.fromOffset(70,20)
-    tag.Position = UDim2.fromOffset(10,36)
-    local tagCorner = Instance.new("UICorner", tag); tagCorner.CornerRadius = UDim.new(1,0)
+    tag.Position = UDim2.fromOffset(0,32)
+    Instance.new("UICorner", tag).CornerRadius = UDim.new(1,0)
     local tagTxt = Instance.new("TextLabel")
     tagTxt.Parent = tag
     tagTxt.BackgroundTransparency = 1
@@ -340,10 +334,10 @@ do
     tagTxt.Text = "HOME"
     tagTxt.Size = UDim2.fromScale(1,1)
 
-    -- ScrollingFrame ใต้หัวข้อ (เหลือระยะเยอะ ๆ กันชนหัวข้อ)
+    -- ScrollingFrame ใต้หัวข้อ (เหลือที่ด้านบนให้พอ)
     local sf = Instance.new("ScrollingFrame")
-    sf.Name = "sfHome"
-    sf.Parent = pgHome
+    sf.Name = "UFOX_Scroll"
+    sf.Parent = wrap
     sf.BackgroundTransparency = 1
     sf.BorderSizePixel = 0
     sf.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -351,8 +345,8 @@ do
     sf.VerticalScrollBarInset = Enum.ScrollBarInset.Always
     sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
     sf.CanvasSize = UDim2.new(0,0,0,0)
-    sf.Position = UDim2.fromOffset(10,66)      -- ⬅︎ เว้นหัวข้อ+tag พอ ๆ กับหน้า Shop
-    sf.Size     = UDim2.new(1,-20,1,-86)       -- ⬅︎ ใช้พื้นที่สูงขึ้น/ลงได้จริง
+    sf.Position = UDim2.fromOffset(0,58)          -- ⬅ ลงมาจากหัวข้อ+แท็ก
+    sf.Size     = UDim2.new(1,0,1,-68)            -- ⬅ เว้นขอบล่างเล็กน้อย
 
     local stack = Instance.new("Frame")
     stack.Name = "Stack"
@@ -360,109 +354,75 @@ do
     stack.BackgroundTransparency = 1
     stack.Size = UDim2.new(1,0,0,0)
     stack.AutomaticSize = Enum.AutomaticSize.Y
-
     local layout = Instance.new("UIListLayout")
     layout.Parent = stack
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Padding = UDim.new(0,10)
 
-    local pad = Instance.new("UIPadding")
-    pad.Parent = stack
-    pad.PaddingTop    = UDim.new(0,0)
-    pad.PaddingBottom = UDim.new(0,10)
-
-    -- ตัวช่วย: ใส่/คงขอบสีเขียว
+    -- ช่วยบังคับขอบสีเขียว
     local function forceGreenStroke(frame)
-        if not frame then return end
-        -- ลบ stroke ซ้ำซ้อนก่อน
         for _,c in ipairs(frame:GetChildren()) do
             if c:IsA("UIStroke") then c:Destroy() end
         end
         local st = Instance.new("UIStroke")
-        st.Name = "UFOX_Border"
         st.Color = ACCENT
         st.Thickness = 2
         st.Transparency = 0
         st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         st.LineJoinMode = Enum.LineJoinMode.Round
         st.Parent = frame
-
-        -- ล็อกค่า stroke (กันโดนสคริปต์อื่นแก้)
-        task.spawn(function()
-            while frame.Parent do
-                if not st.Parent then
-                    st = Instance.new("UIStroke")
-                    st.Name = "UFOX_Border"
-                    st.Color = ACCENT
-                    st.Thickness = 2
-                    st.Transparency = 0
-                    st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-                    st.LineJoinMode = Enum.LineJoinMode.Round
-                    st.Parent = frame
-                else
-                    if st.Color ~= ACCENT then st.Color = ACCENT end
-                    if st.Thickness ~= 2 then st.Thickness = 2 end
-                    if st.Transparency ~= 0 then st.Transparency = 0 end
-                end
-                task.wait(0.3)
-            end
-        end)
     end
 
-    -- หาแถวระบบ (รองรับหลายชื่อ)
-    local nameWhitelist = {
-        UFOX_RowAFK=true,        rowAFK=true,
-        UFOX_RowAutoCollect=true, RowAutoCollect=true, RowAutoClaim=true, UFOX_RowClaim=true,
-        UFOX_RowAutoEgg=true,    RowAutoEgg=true, RowAutoHatch=true
-    }
-    local textHints = {"AFK","Auto-Click","Auto","Claim","Collect","Egg","Hatch"}
-
-    local function looksLikeRow(f)
-        if not (f and f:IsA("GuiObject")) then return false end
-        if nameWhitelist[f.Name] then return true end
+    -- ฟิลเตอร์เฟรมที่เป็น “แถวระบบ”
+    local function isRow(f)
+        if not (f and f:IsA("Frame")) then return false end
+        local hit = 0
         for _,d in ipairs(f:GetDescendants()) do
             if d:IsA("TextLabel") and d.Text then
                 local t = d.Text:lower()
-                for _,k in ipairs(textHints) do
-                    if t:find(k:lower(), 1, true) then return true end
+                if t:find("afk",1,true) or t:find("collect",1,true) or t:find("claim",1,true)
+                or t:find("egg",1,true) or t:find("hatch",1,true) then
+                    hit += 1
                 end
             end
         end
-        return false
+        return hit > 0
     end
 
-    -- เก็บ candidate เฉพาะที่ “ปัจจุบันอยู่ในหน้า Home” หรือเป็นลูกหลานของ content
+    -- รวบรวม “แถว” ที่อยู่ในหน้าเดิม แล้ว “ย้ายเข้า” stack
     local rows = {}
-    local function addIfRow(obj)
-        if looksLikeRow(obj) then table.insert(rows, obj) end
+    for _,c in ipairs(page:GetChildren()) do
+        if isRow(c) then table.insert(rows, c) end
+    end
+    -- กันกรณีแถวฝังลึก
+    if #rows == 0 then
+        for _,d in ipairs(page:GetDescendants()) do
+            if d.Parent == page then
+                if isRow(d) then table.insert(rows, d) end
+            end
+        end
     end
 
-    -- มองใน pgHome ก่อน
-    for _,c in ipairs(pgHome:GetChildren()) do addIfRow(c) end
-    -- เผื่อแถวถูกสร้างไว้ใน content โดยตรง
-    for _,c in ipairs(content:GetChildren()) do addIfRow(c) end
-
-    -- ย้าย/จัดรูปแบบทุกแถว
-    local rowHeight = 52
-    for i,frame in ipairs(rows) do
-        frame.Parent = stack
-        frame.LayoutOrder = i
-        frame.Size = UDim2.new(1,0,0,rowHeight)
-        frame.Visible = true
-        forceGreenStroke(frame)
+    local rowH = 52
+    for i,f in ipairs(rows) do
+        f.Parent = stack
+        f.LayoutOrder = i
+        f.Visible = true
+        f.Size = UDim2.new(1,0,0,rowH)  -- ยืดเต็มกรอบ
+        forceGreenStroke(f)
     end
 
-    -- ถ้าไม่มีแถวไหนเจอเลย → แสดงคำแนะนำสั้น ๆ
+    -- เผื่อไม่มีแถว → โชว์คำแนะนำ
     if #rows == 0 then
         local hint = Instance.new("TextLabel")
         hint.Parent = stack
-        hint.Size = UDim2.new(1,0,0,44)
         hint.BackgroundTransparency = 1
         hint.TextXAlignment = Enum.TextXAlignment.Left
-        hint.TextColor3 = FG
         hint.Font = Enum.Font.GothamMedium
         hint.TextSize = 14
-        hint.Text = "• Put your rows (AFK / Auto-Claim / Auto-Egg) into pgHome or content and re-run this block."
+        hint.TextColor3 = FG
+        hint.Size = UDim2.new(1,0,0,44)
+        hint.Text = "• ไม่พบแถวระบบในหน้า Home — ลองเปิดสคริปต์สร้าง AFK/Auto ต่าง ๆ ก่อนครับ"
     end
 end
 ----------------------------------------------------------------
