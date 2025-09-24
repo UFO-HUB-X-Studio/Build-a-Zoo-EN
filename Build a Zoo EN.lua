@@ -244,137 +244,98 @@ end
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
--- 🏡 Fix: Home button duplicated / not clickable
--- - ลบปุ่มชื่อ "UFOX_HomeBtn" ทุกตัวใน left (ทั้งลูกและหลาน)
--- - กันสร้างซ้ำด้วย Guard Attribute
--- - บังคับปุ่มอยู่ชั้นบน (ZIndex) และ Active=true ให้คลิกได้
+-- 🏠 HOME PAGE: Header สีขาว + เนื้อหาเลื่อนขึ้น/ลงได้
 ----------------------------------------------------------------
-local TS = TS or game:GetService("TweenService")
-local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
-local SUB    = SUB    or Color3.fromRGB(22,22,22)
-local FG     = FG     or Color3.fromRGB(235,235,235)
+local function ensurePage(pageName, icon, titleText)
+    local old = content:FindFirstChild("pg"..pageName)
+    if old then old:Destroy() end
 
-local function make(class, props, kids)
-    local o=Instance.new(class)
-    for k,v in pairs(props or {}) do o[k]=v end
-    for _,c in ipairs(kids or {}) do c.Parent=o end
-    return o
-end
-
--- ============== 1) เคลียร์ของเก่าทุกที่ ==============
-local function deepDestroyByName(root, name)
-    if not root then return end
-    for _,inst in ipairs(root:GetDescendants()) do
-        if inst.Name == name then
-            pcall(function() inst:Destroy() end)
-        end
-    end
-    -- กันหลงเหลือในชั้นลูกตรง ๆ ด้วย
-    for _,inst in ipairs(root:GetChildren()) do
-        if inst.Name == name then
-            pcall(function() inst:Destroy() end)
-        end
-    end
-end
-
--- ที่อยู่ของเมนูด้านซ้าย (ถ้ามี ScrollingFrame ชื่อ LEFT ให้ใช้มัน; ไม่งั้นใช้ left เดิม)
-local LEFT = left:FindFirstChild("LEFT") or left
-
--- ทำความสะอาดก่อน
-deepDestroyByName(left, "UFOX_HomeBtn")
-if LEFT ~= left then deepDestroyByName(LEFT, "UFOX_HomeBtn") end
-
--- ============== 2) Guard กันสร้างซ้ำ ==============
-if LEFT:GetAttribute("UFOX_HomeInstalled") then
-    -- ถ้าถูกเรียกซ้ำ ไม่ต้องสร้างอีก
-    return
-end
-LEFT:SetAttribute("UFOX_HomeInstalled", true)
-
--- ให้แน่ใจว่ามี Layout
-local list = LEFT:FindFirstChildOfClass("UIListLayout")
-if not list then
-    list = make("UIListLayout", {
-        Parent = LEFT,
-        Padding = UDim.new(0,10),
-        FillDirection = Enum.FillDirection.Vertical,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        VerticalAlignment = Enum.VerticalAlignment.Begin
+    local page = make("Frame",{
+        Name = "pg"..pageName, Parent = content,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1,-20,1,-20),
+        Position = UDim2.new(0,10,0,10),
+        Visible = false
     },{})
+
+    -- หัวข้อสีขาวด้านบน (เหมือนที่ชี้ในรูป Shop)
+    make("TextLabel",{
+        Name="Header", Parent=page, BackgroundTransparency=1,
+        Size=UDim2.new(1,-8,0,28), Position=UDim2.new(0,4,0,0),
+        Font=Enum.Font.GothamBold, TextSize=22,
+        Text=(icon or "").." "..(titleText or pageName),
+        TextColor3=Color3.fromRGB(240,240,240),
+        TextXAlignment=Enum.TextXAlignment.Left
+    },{})
+
+    -- พื้นที่เนื้อหาที่เลื่อนขึ้น-ลงได้
+    local body = make("ScrollingFrame",{
+        Name="Body", Parent=page,
+        BackgroundColor3=Color3.fromRGB(12,12,12),
+        BorderSizePixel=0,
+        Size=UDim2.new(1,0,1,-36),    -- เว้นที่ให้ Header
+        Position=UDim2.new(0,0,0,32),
+        AutomaticCanvasSize=Enum.AutomaticSize.Y,
+        CanvasSize=UDim2.new(0,0,0,0),
+        ScrollBarThickness=6,
+        ScrollBarImageTransparency=0.2,
+        ClipsDescendants=true
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.05}),
+        make("UIPadding",{PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),
+                          PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8)}),
+        make("UIListLayout",{
+            FillDirection=Enum.FillDirection.Vertical,
+            Padding=UDim.new(0,8), SortOrder=Enum.SortOrder.LayoutOrder
+        })
+    })
+
+    return page
 end
 
--- ============== 3) สร้างปุ่ม Home ใหม่อันเดียว ==============
-local btnHome = make("TextButton",{
-    Name="UFOX_HomeBtn", Parent=LEFT, AutoButtonColor=false,
-    Size=UDim2.new(1,-8,0,48), BackgroundColor3=SUB, Text="", ClipsDescendants=true,
-    LayoutOrder=1, ZIndex=50, Active=true, Selectable=false
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,10)}),
-    make("UIStroke",{
-        Name="UFOX_Border", Color=ACCENT, Thickness=2, Transparency=0,
-        ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
-    })
-})
+-- ✅ สร้างหน้า Home แบบใหม่
+local pgHome = ensurePage("Home","🏠","Home")
 
-local row = make("Frame",{
-    Parent=btnHome, BackgroundTransparency=1, Size=UDim2.new(1,-16,1,0),
-    Position=UDim2.new(0,8,0,0), ZIndex=51
-},{
-    make("UIListLayout",{
-        FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-        HorizontalAlignment=Enum.HorizontalAlignment.Left,
-        VerticalAlignment=Enum.VerticalAlignment.Center
-    })
-})
-make("TextLabel",{
-    Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-    Font=Enum.Font.GothamBold, TextSize=16, Text="👽", TextColor3=FG, ZIndex=51
-},{})
-make("TextLabel",{
-    Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
-    Font=Enum.Font.GothamBold, TextSize=16, Text="Home",
-    TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG, ZIndex=51
-},{})
-
--- Hover effect
-btnHome.MouseEnter:Connect(function()
-    TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
-end)
-btnHome.MouseLeave:Connect(function()
-    TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
-end)
-
--- Click action
-btnHome.MouseButton1Click:Connect(function()
-    if typeof(_G.UFO_ShowPage) == "function" then
-        -- ถ้าใช้ระบบแท็บ ให้ไปหน้า Home
-        pcall(_G.UFO_ShowPage, "Home")
-    elseif typeof(_G.UFO_OpenHomePage)=="function" then
-        pcall(_G.UFO_OpenHomePage)
+-- ✅ ย้าย “แถวระบบ” เดิมเข้าไปใน Home.Body อัตโนมัติ (ถ้าเจอ)
+local moveNames = {
+    "UFOX_RowAFK",        -- AFK switch row
+    "UFOX_RowCollect",    -- Auto Collect row (ชื่อของคุณอาจเป็นอย่างอื่น)
+    "UFOX_RowAutoCollect",
+    "UFOX_RowEgg",        -- Auto Egg row
+    "UFOX_RowAutoEgg"
+}
+for _,nm in ipairs(moveNames) do
+    local it = content:FindFirstChild(nm)
+    if it and it:IsA("GuiObject") then
+        it.Parent = pgHome.Body
+        it.Size = UDim2.new(1,-4,it.Size.Y.Scale,it.Size.Y.Offset) -- กว้างเต็มภายใน
     end
-end)
+end
 
--- กันโดนแก้ไขขอบ: คอยรีเฟรช stroke ให้เป็นเขียวเสมอ
-task.spawn(function()
-    while btnHome.Parent do
-        local s = btnHome:FindFirstChild("UFOX_Border")
-        if not s then
-            s = make("UIStroke",{
-                Name="UFOX_Border", Color=ACCENT, Thickness=2, Transparency=0,
-                ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
-            },{})
-            s.Parent = btnHome
-        else
-            if s.Color ~= ACCENT then s.Color = ACCENT end
-            if s.Thickness ~= 2 then s.Thickness = 2 end
-            if s.Transparency ~= 0 then s.Transparency = 0 end
-            if s.ApplyStrokeMode ~= Enum.ApplyStrokeMode.Border then
-                s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            end
-        end
-        task.wait(0.3)
+-- ✅ Hook ปุ่มซ้ายให้สลับหน้า (ใช้ร่วมกับของที่มีอยู่)
+local pages = {
+    Home    = pgHome,
+    Shop    = content:FindFirstChild("pgShop"),
+    Fishing = content:FindFirstChild("pgFishing"),
+}
+
+_G.UFO_ShowPage = function(name)
+    for k,pg in pairs(pages) do
+        if pg then pg.Visible = (k==name) end
     end
-end)
+end
+
+local btnHome  = left:FindFirstChild("UFOX_HomeBtn")
+local btnShop  = left:FindFirstChild("UFOX_ShopBtn")
+local btnFish  = left:FindFirstChild("UFOX_FishingBtn")
+
+if btnHome then btnHome.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Home") end) end
+if btnShop then btnShop.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Shop") end) end
+if btnFish then btnFish.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Fishing") end) end
+
+-- เปิดเริ่มต้นเป็นหน้า Home
+_G.UFO_ShowPage("Home")
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick) + DARK OVERLAY (Roblox Image ID)
 -- - กันเตะ: VirtualUser + VirtualInputManager + Idled hook
