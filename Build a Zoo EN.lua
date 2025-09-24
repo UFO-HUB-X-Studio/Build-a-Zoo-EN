@@ -243,125 +243,101 @@ end
 -- เรียกทันที + เรียกซ้ำเมื่อมีการเพิ่มของใหม่
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
--- ================== UFOX: add vertical 🏡scroll on the right page ==================
+-- ================= UFOX: Scroll for RIGHT SIDE (keep left buttons as-is) =================
 do
     local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
-    -- 1) หา "กล่องแถว" ของหน้า Home ที่มี AFK/Auto… อยู่
-    local function findRowsContainer()
-        local roots = {}
-        if typeof(content)=="Instance" then table.insert(roots, content) end
-        if typeof(mainGui)=="Instance" then table.insert(roots, mainGui) end
-        table.insert(roots, game:GetService("CoreGui"))
-
-        local afkLabel, rowFrame, rowsParent
-        for _,root in ipairs(roots) do
+    -- หา "แถว AFK" เพื่อชี้ตำแหน่งคอลัมน์ขวา
+    local function findAFKLabel()
+        local pools = {}
+        if typeof(content)=="Instance" then table.insert(pools, content) end
+        if typeof(mainGui)=="Instance" then table.insert(pools, mainGui) end
+        table.insert(pools, game:GetService("CoreGui"))
+        for _,root in ipairs(pools) do
             for _,d in ipairs(root:GetDescendants()) do
                 if d:IsA("TextLabel") and d.Text and d.Text:lower():find("afk",1,true) then
-                    afkLabel = d
-                    break
+                    return d
                 end
             end
-            if afkLabel then break end
         end
-        if not afkLabel then return end
-        rowFrame = afkLabel:FindFirstAncestorOfClass("Frame")
-        if not rowFrame then return end
-        rowsParent = rowFrame.Parent
-        return rowsParent
     end
 
-    local rowsParent = findRowsContainer()
-    if not rowsParent then
-        warn("[UFOX] Scroll patch: not found (no AFK rows detected).")
+    local afkLabel = findAFKLabel()
+    if not afkLabel then
+        warn("[UFOX] Right-scroll patch: not found AFK label")
         return
     end
 
-    -- ถ้าเป็น ScrollingFrame อยู่แล้ว → แค่เปิดคุณสมบัติและจบ
-    if rowsParent:IsA("ScrollingFrame") then
-        rowsParent.ScrollingDirection     = Enum.ScrollingDirection.Y
-        rowsParent.AutomaticCanvasSize    = Enum.AutomaticSize.Y
-        rowsParent.ScrollBarThickness     = 6
-        rowsParent.VerticalScrollBarInset = Enum.ScrollBarInset.Always
-        rowsParent.CanvasSize             = UDim2.new(0,0,0,0)
-        return
+    -- ไต่ขึ้นหา "กรอบคอลัมน์ขวา" (กรอบเขียวใหญ่)
+    local rightPanel = afkLabel:FindFirstAncestorOfClass("Frame")
+    while rightPanel and rightPanel.Parent and rightPanel.AbsoluteSize.Y < 160 do
+        rightPanel = rightPanel.Parent:FindFirstAncestorOfClass("Frame") or rightPanel.Parent
     end
+    if not rightPanel or not rightPanel.Parent then return end
 
-    -- 2) สร้าง ScrollingFrame ใหม่ “ทับตำแหน่งเดิม” แล้วโยกเฉพาะแถวเข้าไป
-    local parent      = rowsParent.Parent
-    local sf          = Instance.new("ScrollingFrame")
-    sf.Name           = "UFOX_ScrollRight"
-    sf.ZIndex         = rowsParent.ZIndex
-    sf.BackgroundColor3     = rowsParent.BackgroundColor3
-    sf.BackgroundTransparency= rowsParent.BackgroundTransparency
-    sf.BorderSizePixel       = rowsParent.BorderSizePixel
-    sf.Size           = rowsParent.Size
-    sf.Position       = rowsParent.Position
-    sf.AnchorPoint    = rowsParent.AnchorPoint
-    sf.ClipsDescendants = true
-    sf.ScrollingDirection     = Enum.ScrollingDirection.Y
-    sf.AutomaticCanvasSize    = Enum.AutomaticSize.Y
-    sf.ScrollBarThickness     = 6
-    sf.VerticalScrollBarInset = Enum.ScrollBarInset.Always
-    sf.CanvasSize             = UDim2.new(0,0,0,0)
-    sf.Parent = parent
+    -- ถ้าเคยติดตั้งแล้ว ไม่ทำซ้ำ
+    if rightPanel:FindFirstChild("UFOX_ScrollHost") then return end
 
-    -- คงขอบเขียวของกรอบใหญ่ (ถ้ามี)
-    local stroke = rowsParent:FindFirstChildOfClass("UIStroke")
-    if stroke then
-        local s2 = stroke:Clone(); s2.Parent = sf
-    end
-    -- คงมุมโค้ง (ถ้ามี)
-    local corner = rowsParent:FindFirstChildOfClass("UICorner")
-    if corner then
-        local c2 = corner:Clone(); c2.Parent = sf
-    end
+    -- สร้าง ScrollingFrame โปร่งใส วางทับพื้นที่ด้านในของกรอบเขียว
+    local host = Instance.new("ScrollingFrame")
+    host.Name = "UFOX_ScrollHost"
+    host.BackgroundTransparency = 1
+    host.BorderSizePixel = 0
+    host.ClipsDescendants = true
+    host.ScrollingDirection     = Enum.ScrollingDirection.Y
+    host.AutomaticCanvasSize    = Enum.AutomaticSize.Y
+    host.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+    host.ScrollBarThickness     = 6
+    host.ZIndex = (rightPanel.ZIndex or 1) + 1
+    host.Size     = UDim2.new(1,-20,1,-20)          -- ขอบซ้าย/ขวา/บน/ล่างห่างกรอบ 10px
+    host.Position = UDim2.new(0,10,0,10)
+    host.Parent   = rightPanel
 
-    -- 3) โยก “แถว” เข้า ScrollingFrame
-    -- นิยามแถว: Frame ความสูง ~40–80 หรือมี UIStroke ขอบเขียว
-    local function isRow(f)
+    -- Padding: เว้นหัว 14px กันไปชนขอบบน (ตามที่ขอ)
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop    = UDim.new(0,14)
+    pad.PaddingBottom = UDim.new(0,10)
+    pad.PaddingLeft   = UDim.new(0,0)
+    pad.PaddingRight  = UDim.new(0,0)
+    pad.Parent = host
+
+    -- Layout แนวตั้ง
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0,10)
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment   = Enum.VerticalAlignment.Top
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = host
+
+    -- นิยามว่า "แถว" คือ Frame ความสูงประมาณปุ่ม (มี UIStroke สีเขียวบ่อย ๆ)
+    local function isRow(f: Instance)
         if not f:IsA("Frame") then return false end
-        local h = math.abs(f.AbsoluteSize.Y)
-        if h >= 38 and h <= 120 then return true end
+        local h = math.floor(f.AbsoluteSize.Y + 0.5)
+        if h >= 40 and h <= 120 then return true end
         local st = f:FindFirstChildOfClass("UIStroke")
         if st and st.Color == (ACCENT or st.Color) then return true end
         return false
     end
 
-    local keep = {}
-    for _,ch in ipairs(rowsParent:GetChildren()) do
-        if isRow(ch) then
-            table.insert(keep, ch)
-        end
+    -- ย้ายเฉพาะ "แถวรายการ" เข้ามาอยู่ใน ScrollingFrame
+    -- (เว้นกรอบ/พื้นหลังเดิมไว้ ไม่แตะขอบเขียว)
+    local candidates = {}
+    for _,ch in ipairs(rightPanel:GetChildren()) do
+        if isRow(ch) then table.insert(candidates, ch) end
+    end
+    for _,row in ipairs(candidates) do
+        row.Parent = host
     end
 
-    -- ถ้ามี Layout เดิม → โยกทั้ง Layout มาด้วย
-    local oldLayout = rowsParent:FindFirstChildOfClass("UIListLayout")
-    local oldPad    = rowsParent:FindFirstChildOfClass("UIPadding")
-    if oldLayout then
-        local L = oldLayout:Clone(); L.Parent = sf
-    else
-        -- ถ้าไม่มี Layout เดิม ใส่ Layout ให้เรียงแนวตั้งอัตโนมัติ
-        local L = Instance.new("UIListLayout")
-        L.Padding = UDim.new(0,10)
-        L.FillDirection = Enum.FillDirection.Vertical
-        L.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        L.VerticalAlignment   = Enum.VerticalAlignment.Top
-        L.Parent = sf
-    end
-    if oldPad then
-        local P = oldPad:Clone(); P.Parent = sf
-    else
-        local P = Instance.new("UIPadding"); P.PaddingTop = UDim.new(0,10); P.PaddingBottom = UDim.new(0,10); P.Parent = sf
-    end
-
-    for _,ch in ipairs(keep) do
-        ch.Parent = sf
-    end
-
-    -- 4) ซ่อนกล่องเดิม (เก็บไว้เผื่อโค้ดอื่นอ้างอิง)
-    rowsParent.Visible = false
+    -- กันโค้ดอื่นใส่ของเพิ่มภายหลัง → ถ้าเป็นแถว ก็ย้ายเข้ามาอัตโนมัติ
+    rightPanel.ChildAdded:Connect(function(ch)
+        task.defer(function()
+            if isRow(ch) then ch.Parent = host end
+        end)
+    end)
 end
+-- ============================ end patch =========================================
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick) + DARK OVERLAY (Roblox Image ID)
 -- - กันเตะ: VirtualUser + VirtualInputManager + Idled hook
