@@ -1165,6 +1165,30 @@ end)
 
 -- เริ่มต้นแสดงหน้า Home
 ShowPage("Home")
+-- ⚡ Warp Position Logger
+-- กดปุ่ม P (เปลี่ยนได้) → พิมพ์ตำแหน่งใน Output
+
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
+local HOTKEY = Enum.KeyCode.P   -- ปุ่มกด (เปลี่ยนได้)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end -- กันซ้อนจาก UI
+    if input.KeyCode == HOTKEY then
+        local char = LP.Character or LP.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+
+        local pos = hrp.Position
+        local cf  = hrp.CFrame
+
+        print("🌍 Position:", pos)
+        print("🧭 CFrame:", cf)
+    end
+end)
+
+print("✅ กดปุ่ม [P] เพื่อแสดงตำแหน่งใน Output")
 ----------------------------------------------------------------
 -- 🧱 UFOX SIDEBAR NORMALIZER
 -- - ยืดปุ่มให้กว้างเต็มแถบซ้าย (มีระยะขอบซ้าย/ขวาเท่ากัน)
