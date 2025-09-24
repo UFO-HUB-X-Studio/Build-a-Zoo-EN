@@ -1166,20 +1166,55 @@ end)
 -- เริ่มต้นแสดงหน้า Home
 ShowPage("Home")
 ----------------------------------------------------------------
--- ✅ UFOX BORDER GUARD — Force green border & keep it forever
+-- 🧱 UFOX SIDEBAR NORMALIZER
+-- - ยืดปุ่มให้กว้างเต็มแถบซ้าย (มีระยะขอบซ้าย/ขวาเท่ากัน)
+-- - บังคับขอบสีเขียวติดถาวร
+-- - รองรับปุ่ม: Home, Shop, Fishing (เพิ่มชื่อปุ่มอื่นได้)
 ----------------------------------------------------------------
 local LEFT = left
 local GREEN = Color3.fromRGB(0,255,140)
-local TARGET_NAMES = {UFOX_HomeBtn=true, UFOX_ShopBtn=true}
+local TARGET_NAMES = {
+    UFOX_HomeBtn   = true,
+    UFOX_ShopBtn   = true,
+    UFOX_FishingBtn= true, -- ✅ ปุ่มที่ 3: ตกปลา
+}
 
--- สร้าง/รีเซ็ตขอบเขียวให้ปุ่มเป้าหมาย
-local function forceGreenBorder(btn)
+if not LEFT then return end
+
+-- ติดตั้ง UIListLayout + UIPadding ให้แถบซ้าย (ถ้ายังไม่มี)
+local layout = LEFT:FindFirstChildOfClass("UIListLayout")
+if not layout then
+    layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment = Enum.VerticalAlignment.Top
+    layout.Padding = UDim.new(0,10)
+    layout.Parent = LEFT
+end
+local pad = LEFT:FindFirstChildOfClass("UIPadding")
+if not pad then
+    pad = Instance.new("UIPadding")
+    pad.Parent = LEFT
+end
+pad.PaddingLeft  = UDim.new(0,8)
+pad.PaddingRight = UDim.new(0,8)
+pad.PaddingTop   = UDim.new(0,8)
+
+-- ฟังก์ชัน: ยืดปุ่ม + ใส่ขอบเขียว
+local function styleButton(btn)
     if not btn or not btn.Parent then return end
-    -- ลบ UIStroke เก่าทั้งหมดก่อน
+
+    -- ยืดปุ่มให้เต็มกรอบซ้าย (กว้าง = 100% - padding, สูง 44px)
+    btn.AnchorPoint = Vector2.new(0,0)
+    btn.Position = UDim2.new(0,0,0,0)              -- ให้ layout จัดตำแหน่ง
+    btn.Size = UDim2.new(1, 0, 0, 44)              -- ✅ กว้างเต็มแถบ
+    btn.AutoButtonColor = false
+    btn.ClipsDescendants = true
+
+    -- ลบ Stroke เก่า แล้วใส่ขอบเขียวใหม่
     for _,c in ipairs(btn:GetChildren()) do
         if c:IsA("UIStroke") then c:Destroy() end
     end
-    -- ใส่ Stroke ใหม่
     local stroke = Instance.new("UIStroke")
     stroke.Name = "UFOX_Border"
     stroke.Color = GREEN
@@ -1188,70 +1223,45 @@ local function forceGreenBorder(btn)
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.LineJoinMode   = Enum.LineJoinMode.Round
     stroke.Parent = btn
-end
 
--- ล็อคไม่ให้โดนแก้ไข (ถ้าโดนแก้จะรีเซ็ตกลับ)
-local function lockBorder(btn)
-    if not btn or not btn.Parent then return end
-    btn:SetAttribute("UFOX_BorderLocked", true)
-
-    -- เฝ้า Stroke ของปุ่ม
-    local function ensure()
-        local stroke = btn:FindFirstChild("UFOX_Border")
-        if not stroke or not stroke.Parent then
-            forceGreenBorder(btn); stroke = btn:FindFirstChild("UFOX_Border")
-        end
-        if stroke then
-            if stroke.Color ~= GREEN then stroke.Color = GREEN end
-            if stroke.Thickness ~= 2 then stroke.Thickness = 2 end
-            if stroke.Transparency ~= 0 then stroke.Transparency = 0 end
-            if stroke.ApplyStrokeMode ~= Enum.ApplyStrokeMode.Border then
+    -- กันโดนโค้ดอื่นเปลี่ยนค่า → ตรวจซ้ำเป็นระยะสั้น ๆ
+    if not btn:GetAttribute("UFOX_Lock") then
+        btn:SetAttribute("UFOX_Lock", true)
+        task.spawn(function()
+            while btn.Parent and btn:GetAttribute("UFOX_Lock") do
+                -- ย้ำขนาด/ขอบ
+                if btn.Size ~= UDim2.new(1,0,0,44) then
+                    btn.Size = UDim2.new(1,0,0,44)
+                end
+                if not stroke.Parent then
+                    stroke.Parent = btn
+                end
+                stroke.Color = GREEN
+                stroke.Thickness = 2
+                stroke.Transparency = 0
                 stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                task.wait(0.25)
             end
-        end
-    end
-
-    -- สร้างครั้งแรก
-    forceGreenBorder(btn); ensure()
-
-    -- กันโค้ดอื่นมาแก้ค่า
-    task.spawn(function()
-        while btn.Parent and btn:GetAttribute("UFOX_BorderLocked") do
-            ensure()
-            task.wait(0.25) -- เช็คถี่ ๆ
-        end
-    end)
-
-    -- ถ้ามีใครเพิ่ม/ลบลูกในปุ่ม (เช่น ใส่ Stroke ใหม่) → รีเซ็ต
-    btn.ChildAdded:Connect(function() task.defer(ensure) end)
-    btn.ChildRemoved:Connect(function() task.defer(ensure) end)
-
-    -- บางโค้ดจะเปลี่ยนสีปุ่มตอน hover/active → เรารีเซ็ต Stroke ทุกครั้งที่ BackgroundColor3 เปลี่ยน
-    if not btn:GetAttribute("UFOX_WatchBG") then
-        btn:SetAttribute("UFOX_WatchBG", true)
-        btn:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
-            task.defer(ensure)
+        end)
+        btn.ChildAdded:Connect(function(c)
+            if c:IsA("UIStroke") and c ~= stroke then c:Destroy() end
         end)
     end
 end
 
--- ใช้กับปุ่มที่มีอยู่ตอนนี้
-local function applyNow()
-    local btnHome = LEFT and LEFT:FindFirstChild("UFOX_HomeBtn")
-    local btnShop = LEFT and LEFT:FindFirstChild("UFOX_ShopBtn")
-    if btnHome then lockBorder(btnHome) end
-    if btnShop then lockBorder(btnShop) end
+-- ใช้กับปุ่มที่มีอยู่แล้ว
+for _,name in ipairs({"UFOX_HomeBtn","UFOX_ShopBtn","UFOX_FishingBtn"}) do
+    local b = LEFT:FindFirstChild(name)
+    if b and b:IsA("TextButton") then styleButton(b) end
 end
-applyNow()
 
--- ถ้ามีการสร้างปุ่มใหม่ภายหลัง (เช่น reload UI) → ใส่ให้อัตโนมัติ
-if LEFT and not LEFT:GetAttribute("UFOX_BorderGuardInstalled") then
-    LEFT:SetAttribute("UFOX_BorderGuardInstalled", true)
+-- ถ้าปุ่มถูกสร้างใหม่ทีหลัง → จัดให้อัตโนมัติ
+if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
+    LEFT:SetAttribute("UFOX_SidebarNormalizerInstalled", true)
     LEFT.ChildAdded:Connect(function(child)
-        if TARGET_NAMES[child.Name] and child:IsA("TextButton") then
-            -- รอให้ลูกหลานภายในเสร็จแล้วค่อยล็อค (กันยังสร้างไม่ครบ)
-            task.wait(0.05)
-            lockBorder(child)
+        if child:IsA("TextButton") and TARGET_NAMES[child.Name] then
+            task.wait(0.05) -- เผื่อยังประกอบไม่เสร็จ
+            styleButton(child)
         end
     end)
 end
