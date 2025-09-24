@@ -1265,3 +1265,106 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
         end
     end)
 end
+----------------------------------------------------------------
+-- ✅ Resize Right Rows (AFK / Auto Collect / Auto Egg Hatch)
+-- ทำปุ่มเตี้ยลง + ยืดให้พอดีกับกรอบซ้าย-ขวา
+----------------------------------------------------------------
+local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
+local SUB    = SUB    or Color3.fromRGB(22,22,22)
+
+-- ปรับตรงนี้ได้
+local ROW_HEIGHT   = 40   -- ✅ ความสูงของแต่ละปุ่ม (เตี้ยลงได้ที่นี่)
+local H_MARGIN     = 14   -- ✅ เว้นขอบซ้าย/ขวาในกรอบ content
+local BETWEEN_ROWS = 10   -- ✅ ช่องว่างระหว่างปุ่ม
+
+-- ใส่/ปรับ UIListLayout + UIPadding ใน content เพื่อจัดอัตโนมัติ
+local list = content:FindFirstChildOfClass("UIListLayout")
+if not list then
+    list = Instance.new("UIListLayout")
+    list.Parent = content
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    list.VerticalAlignment   = Enum.VerticalAlignment.Top
+    list.SortOrder           = Enum.SortOrder.LayoutOrder
+end
+list.Padding = UDim.new(0, BETWEEN_ROWS)
+
+local pad = content:FindFirstChildOfClass("UIPadding")
+if not pad then
+    pad = Instance.new("UIPadding")
+    pad.Parent = content
+end
+pad.PaddingLeft   = UDim.new(0, H_MARGIN)
+pad.PaddingRight  = UDim.new(0, H_MARGIN)
+pad.PaddingTop    = UDim.new(0, H_MARGIN)
+pad.PaddingBottom = UDim.new(0, H_MARGIN)
+
+-- ตัวช่วยดูแล Stroke/Corner ให้คม
+local function ensureStroke(frame)
+    local stroke = frame:FindFirstChildOfClass("UIStroke")
+    if not stroke then
+        stroke = Instance.new("UIStroke")
+        stroke.Parent = frame
+    end
+    stroke.Color = ACCENT
+    stroke.Thickness = 2
+    stroke.Transparency = 0.05
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode   = Enum.LineJoinMode.Round
+
+    if not frame:FindFirstChildOfClass("UICorner") then
+        local cr = Instance.new("UICorner")
+        cr.CornerRadius = UDim.new(0,10)
+        cr.Parent = frame
+    end
+end
+
+-- เลือกเฉพาะ “แถวปุ่ม” ฝั่งขวา: เป็น Frame ที่มี UIStroke และมีสวิตช์(TextButton)
+local rows = {}
+for _,c in ipairs(content:GetChildren()) do
+    if c:IsA("Frame") and c:FindFirstChildOfClass("UIStroke")
+       and c:FindFirstChildWhichIsA("TextButton") then
+        table.insert(rows, c)
+    end
+end
+-- รักษาลำดับด้วย LayoutOrder (ถ้ามี)
+table.sort(rows, function(a,b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
+
+-- ปรับขนาด/ตำแหน่งภายในของทุกแถว
+for _,row in ipairs(rows) do
+    -- ยืดเต็มกรอบ (ขอบซ้ายขวาคุมด้วย UIPadding แล้ว จึงใส่ X = 1,0)
+    row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
+    row.BackgroundColor3 = row.BackgroundColor3 ~= row.BackgroundColor3 and Color3.fromRGB(18,18,18) or row.BackgroundColor3
+    ensureStroke(row)
+
+    -- ปรับป้ายชื่อ (ตัวแรกที่เป็น TextLabel)
+    local lb = row:FindFirstChildWhichIsA("TextLabel")
+    if lb then
+        lb.Position = UDim2.new(0, 12, 0, 0)
+        lb.Size     = UDim2.new(1, -150, 1, 0) -- เว้นที่ด้านขวาให้สวิตช์
+    end
+
+    -- ปรับสวิตช์ด้านขวา
+    local sw = row:FindFirstChildWhichIsA("TextButton")
+    if sw then
+        sw.AutoButtonColor = false
+        sw.AnchorPoint = Vector2.new(1, 0.5)
+        sw.Position    = UDim2.new(1, -12, 0.5, 0)
+        -- ให้สูงสัมพันธ์กับแถว (เผื่อปรับ ROW_HEIGHT)
+        local sh = math.max(24, ROW_HEIGHT - 16)
+        sw.Size     = UDim2.fromOffset(60, sh)
+        sw.BackgroundColor3 = sw.BackgroundColor3 or SUB
+        ensureStroke(sw)
+
+        -- ปรับขนาด/ตำแหน่งปุ่มกลม (knob) ให้พอดี
+        local knob = sw:FindFirstChildWhichIsA("Frame")
+        if knob then
+            knob.Size     = UDim2.fromOffset(sh - 4, sh - 4)
+            -- ถ้า knob อยู่ซ้าย ให้คงไว้ที่ (0,2) / ถ้าอยู่ขวา คงไว้ที่ (1,-(sh-2))
+            if knob.AnchorPoint == Vector2.new(0,0) or knob.AnchorPoint == Vector2.new() then
+                knob.Position = UDim2.new(0, 2, 0, 2)
+            else
+                knob.Position = knob.Position -- คงค่าปัจจุบัน (ในกรณี ON)
+            end
+        end
+    end
+end
