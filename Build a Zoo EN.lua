@@ -340,9 +340,106 @@ refreshCanvas()
 for _,child in ipairs(content:GetChildren()) do
     if child:IsA("Frame") and WANT_ROWS[child.Name] and child.Parent ~= listHolder then
         child.Visible = false
-    end
-end
+        ----------------------------------------------------------------
+-- FIX: Home page spacing + real scroll + green border
+-- ทำให้ 3 แถว (AFK / Auto Collect / Auto Egg) "ลงมาต่ำกว่าหัวข้อ"
+-- และสกอร์ลขึ้น/ลงได้จริง
+----------------------------------------------------------------
+local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
+local FG     = FG     or Color3.fromRGB(235,235,235)
 
+local pgHome = content:FindFirstChild("pgHome")
+if pgHome then
+    -- 1) ใส่หัวข้อ Home ชัด ๆ (ถ้ายังไม่มี)
+    local header = pgHome:FindFirstChild("HomeHeader")
+    if not header then
+        header = Instance.new("TextLabel")
+        header.Name = "HomeHeader"
+        header.Parent = pgHome
+        header.BackgroundTransparency = 1
+        header.Text = "🏠  Home"
+        header.Font = Enum.Font.GothamBold
+        header.TextSize = 20
+        header.TextColor3 = FG
+        header.TextXAlignment = Enum.TextXAlignment.Left
+        header.Size = UDim2.new(1, -20, 0, 30)
+        header.Position = UDim2.fromOffset(10, 6)
+        -- เส้นบาง ๆ ใต้หัวข้อ (สวย ๆ)
+        local line = Instance.new("Frame")
+        line.Name = "Underline"
+        line.Parent = header
+        line.AnchorPoint = Vector2.new(0,1)
+        line.Position = UDim2.new(0,0,1,2)
+        line.Size = UDim2.new(1,0,0,2)
+        line.BackgroundColor3 = ACCENT
+        line.BorderSizePixel = 0
+        line.BackgroundTransparency = 0.35
+    end
+
+    -- 2) ทำ ScrollFrame สำหรับรายการ + จัดระยะให้ "ลงมาต่ำกว่าหัวข้อ"
+    local sf = pgHome:FindFirstChild("sfHome")
+    if not sf then
+        sf = Instance.new("ScrollingFrame")
+        sf.Name = "sfHome"
+        sf.Parent = pgHome
+        sf.BackgroundTransparency = 1
+        sf.BorderSizePixel = 0
+        sf.ScrollBarThickness = 6
+        sf.ScrollingDirection = Enum.ScrollingDirection.Y
+        sf.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+        sf.CanvasSize = UDim2.new(0,0,0,0) -- จะคำนวณให้เอง
+        sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    end
+    -- ให้สอดรับกับกรอบขวา: เว้นขอบ 10 พิกเซลรอบ ๆ และ "ลงต่ำจากหัวข้อ 40px"
+    sf.Position = UDim2.fromOffset(10, 40)
+    sf.Size     = UDim2.new(1, -20, 1, -50)
+
+    -- 3) ทำสแตกภายในสำหรับวางแถว (ถ้ายังไม่มี)
+    local stack = sf:FindFirstChild("Stack")
+    if not stack then
+        stack = Instance.new("Frame")
+        stack.Name = "Stack"
+        stack.Parent = sf
+        stack.BackgroundTransparency = 1
+        stack.Size = UDim2.new(1, -2, 0, 0)
+        stack.Position = UDim2.fromOffset(1, 0)
+        stack.AutomaticSize = Enum.AutomaticSize.Y
+
+        local layout = Instance.new("UIListLayout")
+        layout.Parent = stack
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0, 10)
+
+        local pad = Instance.new("UIPadding")
+        pad.Parent = stack
+        pad.PaddingTop    = UDim.new(0, 0)
+        pad.PaddingBottom = UDim.new(0, 10)
+        pad.PaddingLeft   = UDim.new(0, 0)
+        pad.PaddingRight  = UDim.new(0, 0)
+    end
+
+    -- 4) ย้าย “สามแถวระบบ” เข้าสต็ก (จะอยู่ถัดจากหัวข้อลงมาอัตโนมัติ)
+    local candidateNames = { "UFOX_RowAFK", "UFOX_RowAutoCollect", "UFOX_RowAutoEgg" }
+    for _,name in ipairs(candidateNames) do
+        local row = pgHome:FindFirstChild(name) or sf:FindFirstChild(name)
+        if row and row.Parent ~= stack then
+            row.Parent = stack
+        end
+    end
+
+    -- เผื่อบางเกมตั้งขนาดแถวไว้ไม่เต็มความกว้าง: บังคับให้เต็มสวย ๆ
+    for _,row in ipairs(stack:GetChildren()) do
+        if row:IsA("Frame") or row:IsA("TextButton") then
+            row.Size = UDim2.new(1, 0, 0, row.AbsoluteSize.Y > 0 and row.AbsoluteSize.Y or 52)
+            -- บังคับให้มีขอบเขียวชัด ๆ
+            local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+            stroke.Parent = row
+            stroke.Color = ACCENT
+            stroke.Thickness = 2
+            stroke.Transparency = 0
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        end
+     end
 -- 6) ถ้าคุณมีระบบสลับหน้าอยู่แล้ว ให้แน่ใจว่าเรียกแบบนี้ตอนสลับ:
 --    pgHome.Visible = true / false; (และหน้าอื่น false)
 --    ไม่ต้องแก้อะไรเพิ่มในบล็อกนี้
