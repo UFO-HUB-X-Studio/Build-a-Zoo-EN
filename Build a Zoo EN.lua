@@ -1266,119 +1266,76 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 🧩 Compact Right Rows: ทำให้ปุ่มเตี้ย-ยาวพอดีกรอบ (วางครั้งเดียวจบ)
--- ทำงานกับปุ่มแนวแถวที่อยู่ในฝั่งขวาของ UI (เช่น AFK/Auto Collect/Auto Egg)
--- ไม่ยุ่งกับเมนูฝั่งซ้าย
+-- Compact Right Rows (Fix 100%)
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
-local RIGHT  = content  -- ← ฝั่งขวาที่วางแถวปุ่ม
+local RIGHT  = content  -- พาเนลฝั่งขวา
 
--- ขนาดที่ต้องการ (ปรับได้)
-local TARGET_HEIGHT = 28   -- ✅ ทำให้ปุ่มเตี้ยลงแบบในตัวอย่าง
-local H_PAD         = 14   -- เว้นซ้ายขวาของพาเนลขวา
-local V_PAD         = 14   -- เว้นบนล่างของพาเนลขวา
-local ROW_GAP       = 8    -- ช่องไฟระหว่างแถว
+-- เคลียร์ของเก่าออกก่อน
+local oldStack = RIGHT:FindFirstChild("UFOX_RightStack")
+if oldStack then oldStack:Destroy() end
 
--- container สำหรับเรียงแถว
-local stack = RIGHT:FindFirstChild("UFOX_RightStack")
-if not stack then
-    stack = Instance.new("Frame")
-    stack.Name = "UFOX_RightStack"
-    stack.BackgroundTransparency = 1
-    stack.ClipsDescendants = true
-    stack.Size = UDim2.new(1, -(H_PAD*2), 1, -(V_PAD*2))
-    stack.Position = UDim2.new(0, H_PAD, 0, V_PAD)
-    stack.Parent = RIGHT
+-- container ใหม่
+local stack = Instance.new("Frame")
+stack.Name = "UFOX_RightStack"
+stack.BackgroundTransparency = 1
+stack.ClipsDescendants = true
+stack.Size = UDim2.new(1, -20, 1, -20)
+stack.Position = UDim2.new(0, 10, 0, 10)
+stack.Parent = RIGHT
 
-    local list = Instance.new("UIListLayout")
-    list.Name = "Layout"
-    list.FillDirection = Enum.FillDirection.Vertical
-    list.Padding = UDim.new(0, ROW_GAP)
-    list.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    list.VerticalAlignment = Enum.VerticalAlignment.Top
-    list.SortOrder = Enum.SortOrder.LayoutOrder
-    list.Parent = stack
-end
+local list = Instance.new("UIListLayout")
+list.FillDirection = Enum.FillDirection.Vertical
+list.Padding = UDim.new(0, 8)
+list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+list.VerticalAlignment = Enum.VerticalAlignment.Top
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = stack
 
--- ฟังก์ชันปรับหน้าตาให้เป็น “แถวปุ่มแบบเตี้ย-ยาว”
+-- ฟังก์ชันปรับปุ่ม
 local function styleRow(row, order)
-    row.BackgroundColor3 = row.BackgroundColor3 or Color3.fromRGB(18,18,18)
-    row.Size        = UDim2.new(1, 0, 0, TARGET_HEIGHT)
-    row.AutomaticSize = Enum.AutomaticSize.None
-    row.LayoutOrder = order or 1
-    row.ClipsDescendants = true
+    row.Size = UDim2.new(1, 0, 0, 28)   -- เตี้ยลง
+    row.LayoutOrder = order
+    row.Parent = stack
 
-    -- ขอบเขียวให้คม & บาง
-    local stroke = row:FindFirstChildOfClass("UIStroke")
-    if not stroke then
-        stroke = Instance.new("UIStroke")
-        stroke.Parent = row
-    end
+    -- stroke เขียว
+    local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
     stroke.Color = ACCENT
     stroke.Thickness = 2
     stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.LineJoinMode = Enum.LineJoinMode.Round
+    stroke.Parent = row
 
-    -- ปรับ Label ให้พอดีความสูงใหม่
+    -- label
     local label = row:FindFirstChildWhichIsA("TextLabel", true)
     if label then
-        label.BackgroundTransparency = 1
-        label.TextXAlignment = Enum.TextXAlignment.Left
         label.TextSize = 13
-        label.Position = UDim2.new(0, 12, 0, 0)
-        label.Size     = UDim2.new(1, -120, 1, 0)
+        label.Size = UDim2.new(1, -100, 1, 0)
+        label.Position = UDim2.new(0, 10, 0, 0)
     end
 
-    -- ปรับสวิตช์ให้เล็กลงและชิดขวา
+    -- toggle
     local toggle = row:FindFirstChildWhichIsA("TextButton", true)
     if toggle then
-        toggle.AutoButtonColor = false
+        toggle.Size = UDim2.fromOffset(46, 18)
         toggle.AnchorPoint = Vector2.new(1, 0.5)
-        toggle.Position    = UDim2.new(1, -10, 0.5, 0)
-        toggle.Size        = UDim2.fromOffset(46, 18)
+        toggle.Position = UDim2.new(1, -10, 0.5, 0)
 
-        local tStroke = toggle:FindFirstChildOfClass("UIStroke")
-        if not tStroke then
-            tStroke = Instance.new("UIStroke")
-            tStroke.Parent = toggle
-        end
-        tStroke.Color = ACCENT
-        tStroke.Thickness = 2
-        tStroke.Transparency = 0.05
-
-        -- ปุ่มกลม (knob)
         local knob = toggle:FindFirstChildWhichIsA("Frame", true)
         if knob then
             knob.Size = UDim2.fromOffset(14,14)
-            -- ถ้าอยู่ฝั่งซ้าย → จัดให้อยู่ซ้าย, ถ้าอยู่ฝั่งขวา → คงไว้
-            if knob.Position.X.Scale <= 0.5 then
-                knob.Position = UDim2.new(0, 2, 0, 2)
-            else
-                knob.Position = UDim2.new(1, -16, 0, 2)
-            end
-            local kCorner = knob:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-            kCorner.CornerRadius = UDim.new(1,0)
-            kCorner.Parent = knob
+            knob.Position = UDim2.new(0, 2, 0.5, -7)
         end
     end
-
-    -- มุมมนตัวแถว
-    local corner = row:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = row
 end
 
--- ดึงทุก “แถวปุ่ม” เดิมในฝั่งขวามาจัดใหม่
+-- จัดการปุ่มที่มีอยู่
 local order = 1
 for _,child in ipairs(RIGHT:GetChildren()) do
-    -- เงื่อนไข: เป็น Frame และมี TextLabel + TextButton อยู่ภายใน (แถวแบบสวิตช์)
     if child:IsA("Frame")
        and child ~= stack
        and child:FindFirstChildWhichIsA("TextLabel", true)
        and child:FindFirstChildWhichIsA("TextButton", true) then
-        child.Parent = stack          -- ย้ายเข้ากรอบจัดเรียง
-        styleRow(child, order)        -- ปรับขนาด/สไตล์ให้เล็ก-ยาว
+        styleRow(child, order)
         order += 1
     end
 end
