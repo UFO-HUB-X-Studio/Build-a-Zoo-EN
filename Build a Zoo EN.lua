@@ -244,92 +244,108 @@ end
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
--- HOME PAGE: หัวข้อเหมือน Shop + ขยับลง + เลื่อนขึ้น/ลงได้จริง
--- ใช้กับปุ่ม/แถวเดิมของคุณ (จะย้ายเฉพาะ Frame ที่ชื่อขึ้นต้นด้วย "UFOX_Row")
+-- 🔧 FIX DUPLICATE ROWS & MAKE HOME SCROLLABLE (no overlap)
+-- วางบล็อกนี้หลังจากที่คุณมีตัวแปร content, left, TS, ACCENT, SUB, FG แล้ว
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 local SUB    = SUB    or Color3.fromRGB(22,22,22)
 local FG     = FG     or Color3.fromRGB(235,235,235)
-local TS     = TS or game:GetService("TweenService")
 
-local function make(c,p,k) local o=Instance.new(c) for a,b in pairs(p or {}) do o[a]=b end
-  for _,ch in ipairs(k or {}) do ch.Parent=o end return o end
+local function make(class, props, kids)
+    local o=Instance.new(class)
+    for k,v in pairs(props or {}) do o[k]=v end
+    for _,c in ipairs(kids or {}) do c.Parent=o end
+    return o
+end
 
--- ลบหน้า Home เก่าแล้วสร้างใหม่ (กันซ้ำ)
-local old = content:FindFirstChild("pgHome"); if old then old:Destroy() end
-local pgHome = make("Frame",{
-  Name="pgHome", Parent=content, BackgroundTransparency=1,
-  Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
-},{})
+-- 1) สร้าง/หาเพจ Home
+local pgHome = content:FindFirstChild("pgHome")
+if not pgHome then
+    pgHome = make("Frame", {
+        Name="pgHome", Parent=content, BackgroundTransparency=1,
+        Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
+    },{})
+end
+pgHome:ClearAllChildren()
 
--- ===== Header เหมือน Shop (ไอคอน + ชื่อ) =====
-local HEADER_H = 28
+-- Header ของ Home
 local header = make("Frame",{
-  Name="Header", Parent=pgHome, BackgroundTransparency=1,
-  Size=UDim2.new(1,0,0,HEADER_H)
+    Parent=pgHome, BackgroundTransparency=1, Size=UDim2.new(1,0,0,30)
 },{
-  make("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,8),
-    VerticalAlignment=Enum.VerticalAlignment.Center})
+    make("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+        HorizontalAlignment=Enum.HorizontalAlignment.Left, VerticalAlignment=Enum.VerticalAlignment.Center})
 })
-make("TextLabel",{
-  Parent=header, BackgroundTransparency=1, Size=UDim2.fromOffset(24,24),
-  Font=Enum.Font.GothamBold, TextSize=20, Text="🏠", TextColor3=FG
-},{})
-make("TextLabel",{
-  Parent=header, BackgroundTransparency=1, Size=UDim2.new(1,-32,1,0),
-  Font=Enum.Font.GothamBold, TextSize=20, Text="Home",
-  TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG
-},{})
+make("TextLabel",{Parent=header, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+    Font=Enum.Font.GothamBold, TextSize=18, Text="🏠", TextColor3=FG})
+make("TextLabel",{Parent=header, BackgroundTransparency=1, Size=UDim2.new(1,-28,1,0),
+    Font=Enum.Font.GothamBold, TextSize=18, Text="Home", TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
--- ===== พื้นที่เนื้อหาเลื่อนขึ้น/ลงได้จริง =====
-local body = make("ScrollingFrame",{
-  Name="Body", Parent=pgHome, BackgroundTransparency=1,
-  Size=UDim2.new(1,0,1,-(HEADER_H+4)), Position=UDim2.new(0,0,0,HEADER_H+4),
-  AutomaticCanvasSize=Enum.AutomaticSize.Y, CanvasSize=UDim2.new(0,0,0,0),
-  ScrollBarThickness=6, ScrollBarImageTransparency=0.15, ClipsDescendants=true
+-- 2) พื้นที่เลื่อน (เลื่อนจริง)
+local listHolder = make("ScrollingFrame",{
+    Parent=pgHome, Name="homeList", Active=true, ClipsDescendants=true,
+    Size=UDim2.new(1,0,1,-34), Position=UDim2.new(0,0,0,34),
+    BackgroundTransparency=1, ScrollBarThickness=6, CanvasSize=UDim2.new(0,0,0,0)
 },{
-  make("UIListLayout",{FillDirection=Enum.FillDirection.Vertical,SortOrder=Enum.SortOrder.LayoutOrder,
-    Padding=UDim.new(0,10)}),
-  make("UIPadding",{PaddingTop=UDim.new(0,16),PaddingBottom=UDim.new(0,12),
-    PaddingLeft=UDim.new(0,10),PaddingRight=UDim.new(0,10)})
+    make("UIListLayout",{Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
 })
-
--- ===== บังคับสไตล์แถว (ขอบเขียวคม + สูงเท่ากัน) =====
-local function styleRow(row, order)
-  if not row then return end
-  row.BackgroundColor3 = Color3.fromRGB(18,18,18)
-  row.Size = UDim2.new(1,0,0,56)                 -- สูงเท่ากันทุกแถว
-  row.LayoutOrder = order or 1
-  if not row:FindFirstChildWhichIsA("UICorner") then
-    make("UICorner",{Parent=row,CornerRadius=UDim.new(0,10)},{})
-  end
-  -- รีเซ็ต/บังคับขอบเขียว
-  for _,c in ipairs(row:GetChildren()) do if c:IsA("UIStroke") then c:Destroy() end end
-  make("UIStroke",{
-    Parent=row, Color=ACCENT, Thickness=2, Transparency=0,
-    ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
-  },{})
-end
-
--- ===== ย้าย “แถวระบบ” เดิมเข้ามาใน ScrollingFrame =====
--- เกณฑ์: ชื่อขึ้นต้นด้วย "UFOX_Row" และเป็น Frame ใต้ content
-local order = 1
-for _,ch in ipairs(content:GetChildren()) do
-  if ch:IsA("Frame") and typeof(ch.Name)=="string" and ch.Name:match("^UFOX_Row") then
-    ch.Parent = body
-    styleRow(ch, order); order += 1
-  end
-end
-
--- ถ้ามีการสร้างแถวเข้ามาใหม่ภายหลัง → จะถูกดึงเข้ามาและจัดสไตล์ให้อัตโนมัติ
-if not content:GetAttribute("UFOX_HomeAutoHook") then
-  content:SetAttribute("UFOX_HomeAutoHook", true)
-  content.ChildAdded:Connect(function(ch)
-    if ch:IsA("Frame") and ch.Name:match("^UFOX_Row") then
-      task.wait() ch.Parent = body; styleRow(ch, order); order += 1
+local function refreshCanvas()
+    local total=0
+    for _,c in ipairs(listHolder:GetChildren()) do
+        if c:IsA("GuiObject") and c.Visible then
+            total += c.AbsoluteSize.Y + 10
+        end
     end
-  end)
+    listHolder.CanvasSize = UDim2.new(0,0,0,math.max(0,total))
 end
+
+-- 3) รายชื่อแถวที่ต้องย้ายเข้ามา
+local WANT_ROWS = {
+    UFOX_RowAFK       = true,
+    UFOX_RowAutoMoney = true,  -- ถ้าคุณใช้ชื่ออื่น เช่น AutoCollect ให้แก้อันนี้
+    UFOX_RowAutoEgg   = true,
+}
+
+-- 4) ดึงแถวที่กระจายอยู่ใต้ content เข้ามาใน homeList และจัดรูปแบบ
+--    พร้อมลบตัวที่ซ้ำชื่อ (คงไว้ตัวสุดท้าย)
+local seen = {}
+for _,child in ipairs(content:GetChildren()) do
+    if child:IsA("Frame") and WANT_ROWS[child.Name] and child ~= pgHome then
+        -- ถ้ามีชื่อซ้ำแล้ว ให้ลบทิ้งตัวเก่า
+        if seen[child.Name] and seen[child.Name].Parent then
+            seen[child.Name]:Destroy()
+        end
+        seen[child.Name] = child
+    end
+end
+
+for name,row in pairs(seen) do
+    row.Parent = listHolder
+    row.Visible = true
+    row.BackgroundColor3 = Color3.fromRGB(18,18,18)
+    row.Size = UDim2.new(1,-20,0,44)     -- กว้างพอดีกับเพจ
+    row.Position = UDim2.fromOffset(10,0)
+    row.LayoutOrder = (name=="UFOX_RowAFK" and 1) or (name=="UFOX_RowAutoMoney" and 2) or 3
+
+    -- บังคับขอบเขียว (กันถูกสคริปต์อื่นลบ)
+    local s = row:FindFirstChildOfClass("UIStroke")
+    if not s then
+        s = Instance.new("UIStroke")
+        s.Parent = row
+    end
+    s.Color = ACCENT; s.Thickness=2; s.Transparency=0; s.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+end
+refreshCanvas()
+
+-- 5) ซ่อน “ของหลวมๆ” ที่ยังเหลืออยู่นอกหน้า (กันซ้อน)
+for _,child in ipairs(content:GetChildren()) do
+    if child:IsA("Frame") and WANT_ROWS[child.Name] and child.Parent ~= listHolder then
+        child.Visible = false
+    end
+end
+
+-- 6) ถ้าคุณมีระบบสลับหน้าอยู่แล้ว ให้แน่ใจว่าเรียกแบบนี้ตอนสลับ:
+--    pgHome.Visible = true / false; (และหน้าอื่น false)
+--    ไม่ต้องแก้อะไรเพิ่มในบล็อกนี้
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick) + DARK OVERLAY (Roblox Image ID)
 -- - กันเตะ: VirtualUser + VirtualInputManager + Idled hook
