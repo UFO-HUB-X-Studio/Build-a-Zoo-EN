@@ -332,6 +332,37 @@ end
 btnHome.MouseButton1Click:Connect(function() ShowPage("Home") end)
 btnShop.MouseButton1Click:Connect(function() ShowPage("Shop") end)
 
+----------------------------------------------------------------
+-- ✅ FORCE GREEN BORDER (UIStroke) FOR HOME & SHOP BUTTONS
+-- วางไว้ท้ายไฟล์หลังจากสร้างปุ่มเสร็จแล้วก็ได้
+----------------------------------------------------------------
+local GREEN = Color3.fromRGB(0,255,140)
+
+local function forceGreenBorder(btn)
+    if not btn or not btn.Parent then return end
+    -- ลบ Stroke เก่า (ถ้ามีค่าเพี้ยน)
+    for _,c in ipairs(btn:GetChildren()) do
+        if c:IsA("UIStroke") then c:Destroy() end
+    end
+    -- ใส่ใหม่แบบบังคับ
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = GREEN
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode   = Enum.LineJoinMode.Round
+    stroke.Parent = btn
+
+    -- กันพลาด: ปุ่มต้องมีพื้นหลัง (อย่าโปร่งใส 1)
+    if typeof(btn.BackgroundTransparency) == "number" and btn.BackgroundTransparency >= 1 then
+        btn.BackgroundTransparency = 0
+    end
+end
+
+-- หาแล้วบังคับใส่ขอบ
+forceGreenBorder(left:FindFirstChild("UFOX_HomeBtn"))
+forceGreenBorder(left:FindFirstChild("UFOX_ShopBtn"))
+
 -- เริ่มต้นที่หน้า Home
 ShowPage("Home")
 
