@@ -204,196 +204,6 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
-----------------------------------------------------------------
--- 🧭 LEFT TABS: Home + Shop (with green border & page switching)
--- ต้องมี: left, content, TS, ACCENT, SUB, FG (มี fallback ด้านบนแล้ว)
-----------------------------------------------------------------
-
--- ensure layout in left
-do
-    local lay = left:FindFirstChildOfClass("UIListLayout")
-    if not lay then
-        lay = Instance.new("UIListLayout")
-        lay.Parent = left
-        lay.Padding = UDim.new(0,10)
-        lay.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        lay.VerticalAlignment   = Enum.VerticalAlignment.Top
-        lay.SortOrder = Enum.SortOrder.LayoutOrder
-    else
-        lay.Padding = UDim.new(0,10)
-    end
-end
-
-----------------------------------------------------------------
--- Pages (content)
-----------------------------------------------------------------
--- ลบของเก่าที่ชื่อซ้ำกันกันซ้อน
-for _,n in ipairs({"pgHome","pgShop"}) do
-    local x = content:FindFirstChild(n)
-    if x and not x:IsA("Frame") then x:Destroy() end
-end
-
-local pgHome = content:FindFirstChild("pgHome")
-if not pgHome then
-    pgHome = make("Frame",{
-        Name="pgHome", Parent=content, BackgroundTransparency=1,
-        Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
-    },{})
-    -- (ใส่เนื้อหาโฮมจริงทีหลังได้)
-end
-
-local pgShop = content:FindFirstChild("pgShop")
-if pgShop then pgShop:Destroy() end
-pgShop = make("Frame",{
-    Name="pgShop", Parent=content, BackgroundTransparency=1,
-    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=false
-},{})
-make("TextLabel",{
-    Parent=pgShop, BackgroundTransparency=1, Size=UDim2.new(1,0,0,28),
-    Position=UDim2.new(0,0,0,0), Font=Enum.Font.GothamBold, TextSize=20,
-    Text="🛒 Shop", TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left
-},{})
-
-----------------------------------------------------------------
--- Buttons (left)
-----------------------------------------------------------------
--- ล้างปุ่มเดิม (กันซ้ำ)
-for _,n in ipairs({"UFOX_HomeBtn","UFOX_ShopBtn"}) do
-    local b = left:FindFirstChild(n); if b then b:Destroy() end
-end
-
--- ฟังก์ชันสร้างปุ่มมีเส้นขอบเขียว
-local function createSideBtn(name, iconText, labelText, order)
-    local b = make("TextButton",{
-        Name=name, Parent=left, AutoButtonColor=false, Text="",
-        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,0),
-        BackgroundColor3=SUB, ClipsDescendants=true, LayoutOrder=order
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{
-            Color=ACCENT, Thickness=2, Transparency=0,
-            ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        })
-    })
-    local row = make("Frame",{
-        Parent=b, BackgroundTransparency=1,
-        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
-    },{
-        make("UIListLayout",{
-            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-            HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Center
-        })
-    })
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=16, Text=iconText, TextColor3=FG})
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
-        Font=Enum.Font.GothamBold, TextSize=15, Text=labelText,
-        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
-    return b
-end
-
-local btnHome = createSideBtn("UFOX_HomeBtn", "🏠", "Home", 1)
-local btnShop = createSideBtn("UFOX_ShopBtn", "🛒", "Shop", 2)
-
--- สไตล์ตอน active/inactive (ให้ขอบเขียวชัดและพื้นเข้มตอน active)
-local function setBtnActive(btn, active)
-    local stroke = btn:FindFirstChildOfClass("UIStroke")
-    if active then
-        TS:Create(btn, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
-        if stroke then stroke.Transparency = 0 end
-    else
-        TS:Create(btn, TweenInfo.new(0.10), {BackgroundColor3 = SUB}):Play()
-        if stroke then stroke.Transparency = 0 end -- ขอบเขียวต้องชัดตลอด
-    end
-end
-
-----------------------------------------------------------------
--- Switch pages
-----------------------------------------------------------------
-local function ShowPage(which)
-    local isShop = (which=="Shop")
-    pgHome.Visible = not isShop
-    pgShop.Visible = isShop
-    setBtnActive(btnHome, not isShop)
-    setBtnActive(btnShop, isShop)
-
-    -- เอฟเฟกต์เล็ก ๆ ตอนสลับหน้า
-    TS:Create(content, TweenInfo.new(0.08), {BackgroundTransparency = 0.02}):Play()
-    task.delay(0.10, function()
-        TS:Create(content, TweenInfo.new(0.10), {BackgroundTransparency = 0}):Play()
-    end)
-
-    -- hook เพิ่มเติมถ้ามี
-    if isShop and typeof(_G.UFO_OpenShopPage)=="function" then pcall(_G.UFO_OpenShopPage) end
-    if (not isShop) and typeof(_G.UFO_OpenHomePage)=="function" then pcall(_G.UFO_OpenHomePage) end
-end
-
-btnHome.MouseButton1Click:Connect(function() ShowPage("Home") end)
-btnShop.MouseButton1Click:Connect(function() ShowPage("Shop") end)
-
-----------------------------------------------------------------
--- ✅ FORCE GREEN BORDER (UIStroke) FOR HOME & SHOP BUTTONS
--- วางไว้ท้ายไฟล์หลังจากสร้างปุ่มเสร็จแล้วก็ได้
-----------------------------------------------------------------
-local GREEN = Color3.fromRGB(0,255,140)
-
-local function forceGreenBorder(btn)
-    if not btn or not btn.Parent then return end
-    -- ลบ Stroke เก่า (ถ้ามีค่าเพี้ยน)
-    for _,c in ipairs(btn:GetChildren()) do
-        if c:IsA("UIStroke") then c:Destroy() end
-    end
-    -- ใส่ใหม่แบบบังคับ
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = GREEN
-    stroke.Thickness = 2
-    stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.LineJoinMode   = Enum.LineJoinMode.Round
-    stroke.Parent = btn
-
-    -- กันพลาด: ปุ่มต้องมีพื้นหลัง (อย่าโปร่งใส 1)
-    if typeof(btn.BackgroundTransparency) == "number" and btn.BackgroundTransparency >= 1 then
-        btn.BackgroundTransparency = 0
-    end
-end
-
--- หาแล้วบังคับใส่ขอบ
-forceGreenBorder(left:FindFirstChild("UFOX_HomeBtn"))
-forceGreenBorder(left:FindFirstChild("UFOX_ShopBtn"))
-
--- เริ่มต้นที่หน้า Home
-ShowPage("Home")
-----------------------------------------------------------------
--- ✅ FORCE GREEN BORDER 100% (HOME + SHOP BUTTONS)
-----------------------------------------------------------------
-local GREEN = Color3.fromRGB(0,255,140)
-
-local function forceGreenBorder(btn)
-    if not btn or not btn.Parent then return end
-
-    -- ลบ Stroke เก่าออก
-    for _,c in ipairs(btn:GetChildren()) do
-        if c:IsA("UIStroke") then c:Destroy() end
-    end
-
-    -- ใส่ Stroke ใหม่
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = GREEN
-    stroke.Thickness = 2
-    stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.LineJoinMode   = Enum.LineJoinMode.Round
-    stroke.Parent = btn
-end
-
--- ====== FORCE APPLY TO HOME + SHOP ======
-local btnHome = left:FindFirstChild("UFOX_HomeBtn")
-local btnShop = left:FindFirstChild("UFOX_ShopBtn")
-
-if btnHome then forceGreenBorder(btnHome) end
-if btnShop then forceGreenBorder(btnShop) end
 
 ----------------------------------------------------------------
 -- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
@@ -1154,3 +964,93 @@ end)
 
 -- เริ่มที่ Home
 ShowPage("Home")
+----------------------------------------------------------------
+-- ✅ UFOX BORDER GUARD — Force green border & keep it forever
+----------------------------------------------------------------
+local LEFT = left
+local GREEN = Color3.fromRGB(0,255,140)
+local TARGET_NAMES = {UFOX_HomeBtn=true, UFOX_ShopBtn=true}
+
+-- สร้าง/รีเซ็ตขอบเขียวให้ปุ่มเป้าหมาย
+local function forceGreenBorder(btn)
+    if not btn or not btn.Parent then return end
+    -- ลบ UIStroke เก่าทั้งหมดก่อน
+    for _,c in ipairs(btn:GetChildren()) do
+        if c:IsA("UIStroke") then c:Destroy() end
+    end
+    -- ใส่ Stroke ใหม่
+    local stroke = Instance.new("UIStroke")
+    stroke.Name = "UFOX_Border"
+    stroke.Color = GREEN
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode   = Enum.LineJoinMode.Round
+    stroke.Parent = btn
+end
+
+-- ล็อคไม่ให้โดนแก้ไข (ถ้าโดนแก้จะรีเซ็ตกลับ)
+local function lockBorder(btn)
+    if not btn or not btn.Parent then return end
+    btn:SetAttribute("UFOX_BorderLocked", true)
+
+    -- เฝ้า Stroke ของปุ่ม
+    local function ensure()
+        local stroke = btn:FindFirstChild("UFOX_Border")
+        if not stroke or not stroke.Parent then
+            forceGreenBorder(btn); stroke = btn:FindFirstChild("UFOX_Border")
+        end
+        if stroke then
+            if stroke.Color ~= GREEN then stroke.Color = GREEN end
+            if stroke.Thickness ~= 2 then stroke.Thickness = 2 end
+            if stroke.Transparency ~= 0 then stroke.Transparency = 0 end
+            if stroke.ApplyStrokeMode ~= Enum.ApplyStrokeMode.Border then
+                stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            end
+        end
+    end
+
+    -- สร้างครั้งแรก
+    forceGreenBorder(btn); ensure()
+
+    -- กันโค้ดอื่นมาแก้ค่า
+    task.spawn(function()
+        while btn.Parent and btn:GetAttribute("UFOX_BorderLocked") do
+            ensure()
+            task.wait(0.25) -- เช็คถี่ ๆ
+        end
+    end)
+
+    -- ถ้ามีใครเพิ่ม/ลบลูกในปุ่ม (เช่น ใส่ Stroke ใหม่) → รีเซ็ต
+    btn.ChildAdded:Connect(function() task.defer(ensure) end)
+    btn.ChildRemoved:Connect(function() task.defer(ensure) end)
+
+    -- บางโค้ดจะเปลี่ยนสีปุ่มตอน hover/active → เรารีเซ็ต Stroke ทุกครั้งที่ BackgroundColor3 เปลี่ยน
+    if not btn:GetAttribute("UFOX_WatchBG") then
+        btn:SetAttribute("UFOX_WatchBG", true)
+        btn:GetPropertyChangedSignal("BackgroundColor3"):Connect(function()
+            task.defer(ensure)
+        end)
+    end
+end
+
+-- ใช้กับปุ่มที่มีอยู่ตอนนี้
+local function applyNow()
+    local btnHome = LEFT and LEFT:FindFirstChild("UFOX_HomeBtn")
+    local btnShop = LEFT and LEFT:FindFirstChild("UFOX_ShopBtn")
+    if btnHome then lockBorder(btnHome) end
+    if btnShop then lockBorder(btnShop) end
+end
+applyNow()
+
+-- ถ้ามีการสร้างปุ่มใหม่ภายหลัง (เช่น reload UI) → ใส่ให้อัตโนมัติ
+if LEFT and not LEFT:GetAttribute("UFOX_BorderGuardInstalled") then
+    LEFT:SetAttribute("UFOX_BorderGuardInstalled", true)
+    LEFT.ChildAdded:Connect(function(child)
+        if TARGET_NAMES[child.Name] and child:IsA("TextButton") then
+            -- รอให้ลูกหลานภายในเสร็จแล้วค่อยล็อค (กันยังสร้างไม่ครบ)
+            task.wait(0.05)
+            lockBorder(child)
+        end
+    end)
+end
