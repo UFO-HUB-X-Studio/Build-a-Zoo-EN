@@ -1266,86 +1266,69 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 🎛 Force-Resize rows on HOME (AFK / Collect / Egg) to slim + full width
--- วางต่อท้ายโค้ดเดิมได้เลย (ไม่ยุ่งส่วนอื่น) 
+-- 🎛 Force-Resize rows (AFK / Collect / Egg) → เตี้ยลง + ยาวเต็มกรอบ
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
--- จัด layout ของพื้นที่ content (ขวา) ให้เรียงชิดกันและมีระยะห่างคงที่
+-- Layout + Padding
 local layout = content:FindFirstChild("UFOX_RowsLayout")
 if not layout then
     layout = Instance.new("UIListLayout")
     layout.Name = "UFOX_RowsLayout"
-    layout.Padding = UDim.new(0,8)                    -- ระยะห่างระหว่างแถว
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.Padding = UDim.new(0,6) -- ระยะห่างแต่ละปุ่ม
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = content
 end
 
--- เผื่อมี padding รอบ ๆ panel ขวา ให้ดูพอดีกับกรอบเขียว
 local pad = content:FindFirstChild("UFOX_RowsPadding")
 if not pad then
     pad = Instance.new("UIPadding")
     pad.Name = "UFOX_RowsPadding"
-    pad.PaddingTop    = UDim.new(0,10)
-    pad.PaddingBottom = UDim.new(0,10)
-    pad.PaddingLeft   = UDim.new(0,12)
-    pad.PaddingRight  = UDim.new(0,12)
+    pad.PaddingTop    = UDim.new(0,8)
+    pad.PaddingBottom = UDim.new(0,8)
+    pad.PaddingLeft   = UDim.new(0,8)
+    pad.PaddingRight  = UDim.new(0,8)
     pad.Parent = content
 end
 
+-- ฟังก์ชันปรับขนาดปุ่ม
 local function resizeRow(row, order)
     if not row then return end
     row.LayoutOrder = order
-    row.Size = UDim2.new(1, -24, 0, 36)              -- ✅ เตี้ยลง + ยาวพอดีกรอบ
+    row.Size = UDim2.new(1, -16, 0, 30)   -- ✅ เตี้ยลง (30px) และยาวเต็ม (ชิดซ้าย/ขวา)
     row.Position = UDim2.fromOffset(0,0)
 
-    -- ขอบเขียวคมชัด
-    local stroke = row:FindFirstChildOfClass("UIStroke")
-    if not stroke then
-        stroke = Instance.new("UIStroke", row)
-    end
+    -- stroke เขียว
+    local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", row)
     stroke.Color = ACCENT
     stroke.Thickness = 2
     stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    -- ป้ายชื่อ (ถ้ามี)
+    -- Label
     local label = row:FindFirstChildWhichIsA("TextLabel", true)
     if label then
-        label.TextSize = 14
-        label.Position = UDim2.new(0,12,0,0)
-        label.Size = UDim2.new(1,-150,1,0)
-        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextSize = 13
+        label.Position = UDim2.new(0,10,0,0)
+        label.Size = UDim2.new(1,-120,1,0)
     end
 
-    -- สวิตช์ทางขวา (ถ้ามี)
+    -- Switch
     local toggle = row:FindFirstChildOfClass("TextButton") or row:FindFirstChildWhichIsA("TextButton", true)
     if toggle then
-        toggle.AutoButtonColor = false
         toggle.AnchorPoint = Vector2.new(1,0.5)
-        toggle.Position = UDim2.new(1,-12,0.5,0)
-        toggle.Size = UDim2.fromOffset(52,22)
-
-        local tStroke = toggle:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", toggle)
-        tStroke.Color = ACCENT
-        tStroke.Thickness = 2
-        tStroke.Transparency = 0.05
+        toggle.Position = UDim2.new(1,-10,0.5,0)
+        toggle.Size = UDim2.fromOffset(48,20)
     end
 end
 
--- ระบุชื่อแถวที่มีอยู่ (ถ้ามีชื่อไม่ตรง ให้เติมของคุณเองได้)
+-- ไล่ปรับทั้งสามปุ่ม
 local rows = {
     content:FindFirstChild("UFOX_RowAFK"),
     content:FindFirstChild("UFOX_RowCollect"),
     content:FindFirstChild("UFOX_RowEgg"),
 }
-
--- ไล่ปรับขนาด/จัดลำดับ
 local order = 1
 for _,r in ipairs(rows) do
-    if r then
-        resizeRow(r, order)
-        order += 1
-    end
+    resizeRow(r, order)
+    order += 1
 end
