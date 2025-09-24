@@ -1266,69 +1266,123 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 🎛 Force-Resize rows (AFK / Collect / Egg) → เตี้ยลง + ยาวเต็มกรอบ
+-- 📏 UFOX Force-Compact Rows (auto shrink + full width)
+-- ทำให้แถวปุ่มทางขวา "เตี้ยลง (30px) + ยาวเต็มกรอบ"
+-- ใช้ได้เลย ไม่ต้องรู้ชื่อวัตถุ (จับจากโครงสร้างภายใน)
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
--- Layout + Padding
-local layout = content:FindFirstChild("UFOX_RowsLayout")
-if not layout then
-    layout = Instance.new("UIListLayout")
-    layout.Name = "UFOX_RowsLayout"
-    layout.Padding = UDim.new(0,6) -- ระยะห่างแต่ละปุ่ม
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Parent = content
-end
-
-local pad = content:FindFirstChild("UFOX_RowsPadding")
+-- ใส่ Padding และ ListLayout ให้โซน content (ถ้ายังไม่มี)
+local pad = content:FindFirstChild("UFOX_ContentPadding")
 if not pad then
     pad = Instance.new("UIPadding")
-    pad.Name = "UFOX_RowsPadding"
-    pad.PaddingTop    = UDim.new(0,8)
-    pad.PaddingBottom = UDim.new(0,8)
-    pad.PaddingLeft   = UDim.new(0,8)
-    pad.PaddingRight  = UDim.new(0,8)
+    pad.Name = "UFOX_ContentPadding"
+    pad.PaddingLeft   = UDim.new(0, 8)
+    pad.PaddingRight  = UDim.new(0, 8)
+    pad.PaddingTop    = UDim.new(0, 8)
+    pad.PaddingBottom = UDim.new(0, 8)
     pad.Parent = content
 end
+local list = content:FindFirstChild("UFOX_ContentList")
+if not list then
+    list = Instance.new("UIListLayout")
+    list.Name = "UFOX_ContentList"
+    list.Padding = UDim.new(0, 6)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Parent = content
+end
 
--- ฟังก์ชันปรับขนาดปุ่ม
-local function resizeRow(row, order)
-    if not row then return end
-    row.LayoutOrder = order
-    row.Size = UDim2.new(1, -16, 0, 30)   -- ✅ เตี้ยลง (30px) และยาวเต็ม (ชิดซ้าย/ขวา)
-    row.Position = UDim2.fromOffset(0,0)
+-- ตัวช่วย: ตรวจว่าเป็น "แถวปุ่ม" จริงไหม (มีสโตรค + label + สวิตช์)
+local function isRow(frame: Instance)
+    if not frame:IsA("Frame") then return false end
+    local hasStroke = frame:FindFirstChildOfClass("UIStroke") ~= nil
+    local hasLabel  = frame:FindFirstChildWhichIsA("TextLabel", true) ~= nil
+    local hasBtn    = frame:FindFirstChildWhichIsA("TextButton", true) ~= nil
+    return hasStroke and hasLabel and hasBtn
+end
 
-    -- stroke เขียว
-    local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", row)
+-- สไตล์แถว: เตี้ยลง + ยาวเต็ม + จัดตำแหน่ง label/สวิตช์
+local function styleRow(row)
+    if not row or not row.Parent then return end
+    if row:GetAttribute("UFOX_Styled") then return end  -- กันสไตล์ซ้ำ
+
+    -- ขนาด: เตี้ย 30px และยาวเต็มกรอบ (เว้นขอบรวม 16px จาก UIPadding)
+    row.Size = UDim2.new(1, -16, 0, 30)
+    row.Position = UDim2.fromOffset(0, 0)
+
+    -- ขอบเขียวคมชัด
+    local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
     stroke.Color = ACCENT
     stroke.Thickness = 2
     stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode = Enum.LineJoinMode.Round
+    stroke.Parent = row
 
-    -- Label
+    -- มุมโค้ง (ถ้ายังไม่มี)
+    if not row:FindFirstChildOfClass("UICorner") then
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, 10)
+        c.Parent = row
+    end
+
+    -- ป้ายชื่อ
     local label = row:FindFirstChildWhichIsA("TextLabel", true)
     if label then
         label.TextSize = 13
-        label.Position = UDim2.new(0,10,0,0)
-        label.Size = UDim2.new(1,-120,1,0)
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Position = UDim2.new(0, 12, 0, 0)
+        label.Size = UDim2.new(1, -120, 1, 0) -- เว้นที่ให้สวิตช์ด้านขวา
     end
 
-    -- Switch
-    local toggle = row:FindFirstChildOfClass("TextButton") or row:FindFirstChildWhichIsA("TextButton", true)
+    -- ปุ่มสวิตช์ (หรือกลุ่ม TextButton ภายใน)
+    local toggle = row:FindFirstChildWhichIsA("TextButton", true)
     if toggle then
-        toggle.AnchorPoint = Vector2.new(1,0.5)
-        toggle.Position = UDim2.new(1,-10,0.5,0)
-        toggle.Size = UDim2.fromOffset(48,20)
+        toggle.AnchorPoint = Vector2.new(1, 0.5)
+        toggle.Position = UDim2.new(1, -10, 0.5, 0)
+        toggle.Size = UDim2.fromOffset(48, 20)
+
+        -- ลูกบิดภายใน (ถ้ามี)
+        local knob = toggle:FindFirstChildWhichIsA("Frame")
+        if knob then
+            knob.Size = UDim2.fromOffset(18, 18)
+            knob.Position = UDim2.new(0, 2, 0, 1)
+            if not knob:FindFirstChildOfClass("UICorner") then
+                local kc = Instance.new("UICorner")
+                kc.CornerRadius = UDim.new(1, 0)
+                kc.Parent = knob
+            end
+        end
+    end
+
+    row:SetAttribute("UFOX_Styled", true)
+
+    -- ถ้ามีใครเปลี่ยนขนาด/สีทีหลัง → จะรีสไตล์กลับให้
+    if not row:GetAttribute("UFOX_Watch") then
+        row:SetAttribute("UFOX_Watch", true)
+        task.spawn(function()
+            while row.Parent do
+                -- บังคับคงสภาพทุก ๆ 0.3 วินาที
+                row.Size = UDim2.new(1, -16, 0, 30)
+                if stroke.Parent ~= row then stroke.Parent = row end
+                task.wait(0.3)
+            end
+        end)
     end
 end
 
--- ไล่ปรับทั้งสามปุ่ม
-local rows = {
-    content:FindFirstChild("UFOX_RowAFK"),
-    content:FindFirstChild("UFOX_RowCollect"),
-    content:FindFirstChild("UFOX_RowEgg"),
-}
-local order = 1
-for _,r in ipairs(rows) do
-    resizeRow(r, order)
-    order += 1
+-- สไตล์ทุกแถวที่มีอยู่ตอนนี้
+for _, ch in ipairs(content:GetChildren()) do
+    if isRow(ch) then styleRow(ch) end
+end
+
+-- ถ้ามีการเพิ่มแถวใหม่ภายหลัง → ใส่สไตล์ให้เองอัตโนมัติ
+if not content:GetAttribute("UFOX_RowStylerInstalled") then
+    content:SetAttribute("UFOX_RowStylerInstalled", true)
+    content.ChildAdded:Connect(function(child)
+        task.wait(0.05)       -- เผื่อให้ลูกภายในสร้างเสร็จ
+        if isRow(child) then
+            styleRow(child)
+        end
+    end)
 end
