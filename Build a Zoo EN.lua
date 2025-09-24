@@ -204,29 +204,137 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
-
 ----------------------------------------------------------------
--- 🔩 REQUIRE: โค้ดนี้สมมติว่าคุณมีตัวแปร/ฟังก์ชันต่อไปนี้จาก UI หลัก:
--- mainGui, content, left, TS (TweenService), ACCENT, SUB, FG
--- ถ้าไม่มี ผมใส่ fallback ไว้ให้ด้านล่างแล้ว
+-- 🧭 LEFT TABS: Home + Shop (with green border & page switching)
+-- ต้องมี: left, content, TS, ACCENT, SUB, FG (มี fallback ด้านบนแล้ว)
 ----------------------------------------------------------------
-local TS = TS or game:GetService("TweenService")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local VirtualUser = game:GetService("VirtualUser")
-local RS = game:GetService("ReplicatedStorage")
 
-local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
-local SUB    = SUB    or Color3.fromRGB(22,22,22)
-local FG     = FG     or Color3.fromRGB(235,235,235)
-
--- ตัวช่วยสร้างอินสแตนซ์
-local function make(class, props, kids)
-    local o=Instance.new(class)
-    for k,v in pairs(props or {}) do o[k]=v end
-    for _,c in ipairs(kids or {}) do c.Parent=o end
-    return o
+-- ensure layout in left
+do
+    local lay = left:FindFirstChildOfClass("UIListLayout")
+    if not lay then
+        lay = Instance.new("UIListLayout")
+        lay.Parent = left
+        lay.Padding = UDim.new(0,10)
+        lay.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        lay.VerticalAlignment   = Enum.VerticalAlignment.Top
+        lay.SortOrder = Enum.SortOrder.LayoutOrder
+    else
+        lay.Padding = UDim.new(0,10)
+    end
 end
+
+----------------------------------------------------------------
+-- Pages (content)
+----------------------------------------------------------------
+-- ลบของเก่าที่ชื่อซ้ำกันกันซ้อน
+for _,n in ipairs({"pgHome","pgShop"}) do
+    local x = content:FindFirstChild(n)
+    if x and not x:IsA("Frame") then x:Destroy() end
+end
+
+local pgHome = content:FindFirstChild("pgHome")
+if not pgHome then
+    pgHome = make("Frame",{
+        Name="pgHome", Parent=content, BackgroundTransparency=1,
+        Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
+    },{})
+    -- (ใส่เนื้อหาโฮมจริงทีหลังได้)
+end
+
+local pgShop = content:FindFirstChild("pgShop")
+if pgShop then pgShop:Destroy() end
+pgShop = make("Frame",{
+    Name="pgShop", Parent=content, BackgroundTransparency=1,
+    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=false
+},{})
+make("TextLabel",{
+    Parent=pgShop, BackgroundTransparency=1, Size=UDim2.new(1,0,0,28),
+    Position=UDim2.new(0,0,0,0), Font=Enum.Font.GothamBold, TextSize=20,
+    Text="🛒 Shop", TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left
+},{})
+
+----------------------------------------------------------------
+-- Buttons (left)
+----------------------------------------------------------------
+-- ล้างปุ่มเดิม (กันซ้ำ)
+for _,n in ipairs({"UFOX_HomeBtn","UFOX_ShopBtn"}) do
+    local b = left:FindFirstChild(n); if b then b:Destroy() end
+end
+
+-- ฟังก์ชันสร้างปุ่มมีเส้นขอบเขียว
+local function createSideBtn(name, iconText, labelText, order)
+    local b = make("TextButton",{
+        Name=name, Parent=left, AutoButtonColor=false, Text="",
+        Size=UDim2.new(1,-16,0,38), Position=UDim2.fromOffset(8,0),
+        BackgroundColor3=SUB, ClipsDescendants=true, LayoutOrder=order
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{
+            Color=ACCENT, Thickness=2, Transparency=0,
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        })
+    })
+    local row = make("Frame",{
+        Parent=b, BackgroundTransparency=1,
+        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
+    },{
+        make("UIListLayout",{
+            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+            HorizontalAlignment=Enum.HorizontalAlignment.Left,
+            VerticalAlignment=Enum.VerticalAlignment.Center
+        })
+    })
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+        Font=Enum.Font.GothamBold, TextSize=16, Text=iconText, TextColor3=FG})
+    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+        Font=Enum.Font.GothamBold, TextSize=15, Text=labelText,
+        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
+    return b
+end
+
+local btnHome = createSideBtn("UFOX_HomeBtn", "🏠", "Home", 1)
+local btnShop = createSideBtn("UFOX_ShopBtn", "🛒", "Shop", 2)
+
+-- สไตล์ตอน active/inactive (ให้ขอบเขียวชัดและพื้นเข้มตอน active)
+local function setBtnActive(btn, active)
+    local stroke = btn:FindFirstChildOfClass("UIStroke")
+    if active then
+        TS:Create(btn, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+        if stroke then stroke.Transparency = 0 end
+    else
+        TS:Create(btn, TweenInfo.new(0.10), {BackgroundColor3 = SUB}):Play()
+        if stroke then stroke.Transparency = 0 end -- ขอบเขียวต้องชัดตลอด
+    end
+end
+
+----------------------------------------------------------------
+-- Switch pages
+----------------------------------------------------------------
+local function ShowPage(which)
+    local isShop = (which=="Shop")
+    pgHome.Visible = not isShop
+    pgShop.Visible = isShop
+    setBtnActive(btnHome, not isShop)
+    setBtnActive(btnShop, isShop)
+
+    -- เอฟเฟกต์เล็ก ๆ ตอนสลับหน้า
+    TS:Create(content, TweenInfo.new(0.08), {BackgroundTransparency = 0.02}):Play()
+    task.delay(0.10, function()
+        TS:Create(content, TweenInfo.new(0.10), {BackgroundTransparency = 0}):Play()
+    end)
+
+    -- hook เพิ่มเติมถ้ามี
+    if isShop and typeof(_G.UFO_OpenShopPage)=="function" then pcall(_G.UFO_OpenShopPage) end
+    if (not isShop) and typeof(_G.UFO_OpenHomePage)=="function" then pcall(_G.UFO_OpenHomePage) end
+end
+
+btnHome.MouseButton1Click:Connect(function() ShowPage("Home") end)
+btnShop.MouseButton1Click:Connect(function() ShowPage("Shop") end)
+
+-- เริ่มต้นที่หน้า Home
+ShowPage("Home")
+
 ----------------------------------------------------------------
 -- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
 ----------------------------------------------------------------
