@@ -1266,107 +1266,86 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 🎛️ Compact Right Rows (thin & long pills)
--- ทำปุ่มฝั่งขวาให้ "เล็ก-ยาว" + เว้นขอบพอดีกับกรอบ
+-- 🎛 Force-Resize rows on HOME (AFK / Collect / Egg) to slim + full width
+-- วางต่อท้ายโค้ดเดิมได้เลย (ไม่ยุ่งส่วนอื่น) 
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
-local SUB    = SUB    or Color3.fromRGB(22,22,22)
-local FG     = FG     or Color3.fromRGB(235,235,235)
 
--- ปรับได้ตามใจ
-local ROW_HEIGHT   = 32     -- ✅ ความสูงแต่ละปุ่ม (บางลง)
-local TEXT_SIZE    = 15
-local H_MARGIN     = 12     -- ✅ เว้นซ้าย/ขวาในกรอบ content
-local BETWEEN_ROWS = 8      -- ✅ ช่องไฟระหว่างปุ่ม
-local SWITCH_W     = 48     -- ✅ ความกว้างสวิตช์
-local SWITCH_H     = 20     -- ✅ ความสูงสวิตช์ (จะตาม ROW_HEIGHT เล็กน้อย)
-local KNOB_PAD     = 2      -- ระยะขอบของปุ่มกลมในสวิตช์
-
--- ใส่ layout + padding ให้ content (ถ้ามีอยู่แล้วจะอัปเดตค่า)
-local list = content:FindFirstChildOfClass("UIListLayout")
-if not list then
-    list = Instance.new("UIListLayout")
-    list.Parent = content
-end
-list.FillDirection       = Enum.FillDirection.Vertical
-list.HorizontalAlignment = Enum.HorizontalAlignment.Left
-list.VerticalAlignment   = Enum.VerticalAlignment.Top
-list.SortOrder           = Enum.SortOrder.LayoutOrder
-list.Padding             = UDim.new(0, BETWEEN_ROWS)
-
-local pad = content:FindFirstChildOfClass("UIPadding")
-if not pad then pad = Instance.new("UIPadding"); pad.Parent = content end
-pad.PaddingLeft   = UDim.new(0, H_MARGIN)
-pad.PaddingRight  = UDim.new(0, H_MARGIN)
-pad.PaddingTop    = UDim.new(0, H_MARGIN)
-pad.PaddingBottom = UDim.new(0, H_MARGIN)
-
-local function ensureCornerStroke(frame)
-    if not frame:FindFirstChildOfClass("UICorner") then
-        local cr = Instance.new("UICorner"); cr.CornerRadius = UDim.new(0,10); cr.Parent = frame
-    end
-    local st = frame:FindFirstChildOfClass("UIStroke")
-    if not st then st = Instance.new("UIStroke"); st.Parent = frame end
-    st.Color = ACCENT; st.Thickness = 2; st.Transparency = 0.05
-    st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    st.LineJoinMode    = Enum.LineJoinMode.Round
+-- จัด layout ของพื้นที่ content (ขวา) ให้เรียงชิดกันและมีระยะห่างคงที่
+local layout = content:FindFirstChild("UFOX_RowsLayout")
+if not layout then
+    layout = Instance.new("UIListLayout")
+    layout.Name = "UFOX_RowsLayout"
+    layout.Padding = UDim.new(0,8)                    -- ระยะห่างระหว่างแถว
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
 end
 
--- เก็บเฉพาะแถวปุ่มฝั่งขวา (มี UIStroke + TextLabel + TextButton)
-local rows = {}
-for _,c in ipairs(content:GetChildren()) do
-    if c:IsA("Frame") and c:FindFirstChildOfClass("UIStroke")
-       and c:FindFirstChildWhichIsA("TextLabel")
-       and c:FindFirstChildWhichIsA("TextButton") then
-        table.insert(rows, c)
+-- เผื่อมี padding รอบ ๆ panel ขวา ให้ดูพอดีกับกรอบเขียว
+local pad = content:FindFirstChild("UFOX_RowsPadding")
+if not pad then
+    pad = Instance.new("UIPadding")
+    pad.Name = "UFOX_RowsPadding"
+    pad.PaddingTop    = UDim.new(0,10)
+    pad.PaddingBottom = UDim.new(0,10)
+    pad.PaddingLeft   = UDim.new(0,12)
+    pad.PaddingRight  = UDim.new(0,12)
+    pad.Parent = content
+end
+
+local function resizeRow(row, order)
+    if not row then return end
+    row.LayoutOrder = order
+    row.Size = UDim2.new(1, -24, 0, 36)              -- ✅ เตี้ยลง + ยาวพอดีกรอบ
+    row.Position = UDim2.fromOffset(0,0)
+
+    -- ขอบเขียวคมชัด
+    local stroke = row:FindFirstChildOfClass("UIStroke")
+    if not stroke then
+        stroke = Instance.new("UIStroke", row)
+    end
+    stroke.Color = ACCENT
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    -- ป้ายชื่อ (ถ้ามี)
+    local label = row:FindFirstChildWhichIsA("TextLabel", true)
+    if label then
+        label.TextSize = 14
+        label.Position = UDim2.new(0,12,0,0)
+        label.Size = UDim2.new(1,-150,1,0)
+        label.TextXAlignment = Enum.TextXAlignment.Left
+    end
+
+    -- สวิตช์ทางขวา (ถ้ามี)
+    local toggle = row:FindFirstChildOfClass("TextButton") or row:FindFirstChildWhichIsA("TextButton", true)
+    if toggle then
+        toggle.AutoButtonColor = false
+        toggle.AnchorPoint = Vector2.new(1,0.5)
+        toggle.Position = UDim2.new(1,-12,0.5,0)
+        toggle.Size = UDim2.fromOffset(52,22)
+
+        local tStroke = toggle:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", toggle)
+        tStroke.Color = ACCENT
+        tStroke.Thickness = 2
+        tStroke.Transparency = 0.05
     end
 end
-table.sort(rows, function(a,b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
 
-for _,row in ipairs(rows) do
-    -- ทำแถวให้บาง & ยาวเต็มกรอบ (ขอบซ้ายขวาคุมด้วย UIPadding แล้ว)
-    row.BackgroundColor3 = Color3.fromRGB(18,18,18)
-    row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-    ensureCornerStroke(row)
+-- ระบุชื่อแถวที่มีอยู่ (ถ้ามีชื่อไม่ตรง ให้เติมของคุณเองได้)
+local rows = {
+    content:FindFirstChild("UFOX_RowAFK"),
+    content:FindFirstChild("UFOX_RowCollect"),
+    content:FindFirstChild("UFOX_RowEgg"),
+}
 
-    -- ป้ายข้อความ
-    local lb = row:FindFirstChildWhichIsA("TextLabel")
-    if lb then
-        lb.BackgroundTransparency = 1
-        lb.TextColor3  = FG
-        lb.TextSize    = TEXT_SIZE
-        lb.TextXAlignment = Enum.TextXAlignment.Left
-        lb.Position = UDim2.new(0, 12, 0, 0)
-        lb.Size     = UDim2.new(1, -(SWITCH_W + 12 + 12), 1, 0) -- เว้นที่ให้สวิตช์
-    end
-
-    -- สวิตช์ด้านขวา (ปรับให้เล็กตามแถว)
-    local sw = row:FindFirstChildWhichIsA("TextButton")
-    if sw then
-        sw.AutoButtonColor = false
-        sw.BackgroundColor3 = SUB
-        sw.AnchorPoint = Vector2.new(1, 0.5)
-        -- สูงสุด: ใช้ min(ROW_HEIGHT-10, SWITCH_H) กันชนหัว/ท้าย
-        local sh = math.min(ROW_HEIGHT - 10, SWITCH_H)
-        sw.Size     = UDim2.fromOffset(SWITCH_W, math.max(sh, 16))
-        sw.Position = UDim2.new(1, -12, 0.5, 0)
-        ensureCornerStroke(sw)
-
-        -- ปุ่มกลม (knob)
-        local knob = sw:FindFirstChildWhichIsA("Frame")
-        if knob then
-            knob.BorderSizePixel = 0
-            local kH = math.max(sw.AbsoluteSize.Y - (KNOB_PAD*2), 14)
-            knob.Size = UDim2.fromOffset(kH, kH)
-            -- ถ้าเป็นสถานะ OFF -> knob ซ้าย, ON -> ขวา (คงตำแหน่งเดิมถ้า UI มีอนิเมชัน)
-            if knob.Position.X.Scale == 0 or knob.Position.X.Offset <= 4 then
-                knob.Position = UDim2.new(0, KNOB_PAD, 0, KNOB_PAD)
-            else
-                knob.Position = UDim2.new(1, -(kH + KNOB_PAD), 0, KNOB_PAD)
-            end
-            if not knob:FindFirstChildOfClass("UICorner") then
-                local kcr = Instance.new("UICorner"); kcr.CornerRadius = UDim.new(1,0); kcr.Parent = knob
-            end
-        end
+-- ไล่ปรับขนาด/จัดลำดับ
+local order = 1
+for _,r in ipairs(rows) do
+    if r then
+        resizeRow(r, order)
+        order += 1
     end
 end
