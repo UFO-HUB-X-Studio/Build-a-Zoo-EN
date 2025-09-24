@@ -365,6 +365,35 @@ forceGreenBorder(left:FindFirstChild("UFOX_ShopBtn"))
 
 -- เริ่มต้นที่หน้า Home
 ShowPage("Home")
+----------------------------------------------------------------
+-- ✅ FORCE GREEN BORDER 100% (HOME + SHOP BUTTONS)
+----------------------------------------------------------------
+local GREEN = Color3.fromRGB(0,255,140)
+
+local function forceGreenBorder(btn)
+    if not btn or not btn.Parent then return end
+
+    -- ลบ Stroke เก่าออก
+    for _,c in ipairs(btn:GetChildren()) do
+        if c:IsA("UIStroke") then c:Destroy() end
+    end
+
+    -- ใส่ Stroke ใหม่
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = GREEN
+    stroke.Thickness = 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.LineJoinMode   = Enum.LineJoinMode.Round
+    stroke.Parent = btn
+end
+
+-- ====== FORCE APPLY TO HOME + SHOP ======
+local btnHome = left:FindFirstChild("UFOX_HomeBtn")
+local btnShop = left:FindFirstChild("UFOX_ShopBtn")
+
+if btnHome then forceGreenBorder(btnHome) end
+if btnShop then forceGreenBorder(btnShop) end
 
 ----------------------------------------------------------------
 -- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
