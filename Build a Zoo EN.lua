@@ -244,157 +244,135 @@ end
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
--- 🏠 UPGRADE HOME + MAKE LEFT PANEL SCROLLABLE
--- ต้องมี: left, content, TS, ACCENT, SUB, FG
+-- 🏡 Fix: Home button duplicated / not clickable
+-- - ลบปุ่มชื่อ "UFOX_HomeBtn" ทุกตัวใน left (ทั้งลูกและหลาน)
+-- - กันสร้างซ้ำด้วย Guard Attribute
+-- - บังคับปุ่มอยู่ชั้นบน (ZIndex) และ Active=true ให้คลิกได้
 ----------------------------------------------------------------
-local TS    = TS or game:GetService("TweenService")
-local ACCENT= ACCENT or Color3.fromRGB(0,255,140)
-local SUB   = SUB    or Color3.fromRGB(22,22,22)
-local FG    = FG     or Color3.fromRGB(235,235,235)
+local TS = TS or game:GetService("TweenService")
+local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
+local SUB    = SUB    or Color3.fromRGB(22,22,22)
+local FG     = FG     or Color3.fromRGB(235,235,235)
 
 local function make(class, props, kids)
-    local o = Instance.new(class)
+    local o=Instance.new(class)
     for k,v in pairs(props or {}) do o[k]=v end
-    for _,c in ipairs(kids or {}) do c.Parent = o end
+    for _,c in ipairs(kids or {}) do c.Parent=o end
     return o
 end
 
--- 1) สร้างแผงเลื่อนภายใน left (ถ้ามีอยู่แล้วจะใช้ตัวเดิม)
-local function ensureLeftScrollable()
-    if left:IsA("ScrollingFrame") then
-        -- มีคนสร้างเป็น ScrollingFrame ไว้แล้ว
-        left.ScrollBarThickness = 4
-        left.ScrollingDirection = Enum.ScrollingDirection.Y
-        left.AutomaticCanvasSize = Enum.AutomaticSize.None
-        if not left:FindFirstChildOfClass("UIListLayout") then
-            make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
+-- ============== 1) เคลียร์ของเก่าทุกที่ ==============
+local function deepDestroyByName(root, name)
+    if not root then return end
+    for _,inst in ipairs(root:GetDescendants()) do
+        if inst.Name == name then
+            pcall(function() inst:Destroy() end)
         end
-        -- ผูกขนาดแคนวาส
-        local layout = left:FindFirstChildOfClass("UIListLayout")
-        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            left.CanvasSize = UDim2.new(0,0,0, layout.AbsoluteContentSize.Y + 16)
-        end)
-        return left
     end
-
-    -- ถ้า left เป็น Frame/อื่นๆ → สร้าง ScrollingFrame ข้างใน แล้วโยงปุ่มเข้าไป
-    local scroll = left:FindFirstChild("UFOX_LeftScroll")
-    if not scroll then
-        scroll = make("ScrollingFrame",{
-            Name="UFOX_LeftScroll", Parent=left,
-            BackgroundTransparency=1, BorderSizePixel=0,
-            Size=UDim2.fromScale(1,1), CanvasSize=UDim2.new(),
-            ScrollBarThickness=4, ScrollingDirection=Enum.ScrollingDirection.Y
-        },{
-            make("UIPadding",{PaddingTop=UDim.new(0,10), PaddingBottom=UDim.new(0,10),
-                              PaddingLeft=UDim.new(0,2),  PaddingRight=UDim.new(0,2)}),
-            make("UIListLayout",{Padding=UDim.new(0,10)})
-        })
-        -- ย้ายลูกเดิมๆ (เฉพาะ TextButton/Frame ของเมนู) เข้าไปใน scroll
-        for _,ch in ipairs(left:GetChildren()) do
-            if ch ~= scroll and (ch:IsA("TextButton") or ch:IsA("Frame")) then
-                ch.Parent = scroll
-            end
+    -- กันหลงเหลือในชั้นลูกตรง ๆ ด้วย
+    for _,inst in ipairs(root:GetChildren()) do
+        if inst.Name == name then
+            pcall(function() inst:Destroy() end)
         end
-        -- Auto canvas
-        local layout = scroll:FindFirstChildOfClass("UIListLayout")
-        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            scroll.CanvasSize = UDim2.new(0,0,0, layout.AbsoluteContentSize.Y + 16)
-        end)
     end
-    return scroll
 end
 
-local LEFT = ensureLeftScrollable()
+-- ที่อยู่ของเมนูด้านซ้าย (ถ้ามี ScrollingFrame ชื่อ LEFT ให้ใช้มัน; ไม่งั้นใช้ left เดิม)
+local LEFT = left:FindFirstChild("LEFT") or left
 
--- 2) ลบปุ่ม Home เก่า แล้วสร้างใหม่ให้ยาวและมีขอบเขียวคม
-do
-    local old = (LEFT and LEFT:FindFirstChild("UFOX_HomeBtn")) or (left:FindFirstChild("UFOX_HomeBtn"))
-    if old then old:Destroy() end
+-- ทำความสะอาดก่อน
+deepDestroyByName(left, "UFOX_HomeBtn")
+if LEFT ~= left then deepDestroyByName(LEFT, "UFOX_HomeBtn") end
 
-    local btnHome = make("TextButton",{
-        Name="UFOX_HomeBtn", Parent=LEFT, AutoButtonColor=false,
-        Size=UDim2.new(1,-8,0,48),       -- ยาวแทบเต็ม ซ้าย/ขวาห่างขอบรวม 8px
-        BackgroundColor3=SUB, Text="", ClipsDescendants=true,
-        LayoutOrder=1
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{
-            Color=ACCENT, Thickness=2, Transparency=0,
-            ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
-        })
-    })
+-- ============== 2) Guard กันสร้างซ้ำ ==============
+if LEFT:GetAttribute("UFOX_HomeInstalled") then
+    -- ถ้าถูกเรียกซ้ำ ไม่ต้องสร้างอีก
+    return
+end
+LEFT:SetAttribute("UFOX_HomeInstalled", true)
 
-    -- แถวเนื้อหาข้างใน
-    local row = make("Frame",{
-        Parent=btnHome, BackgroundTransparency=1,
-        Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
-    },{
-        make("UIListLayout",{
-            FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-            HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Center
-        })
-    })
-    -- ไอคอนซ้าย
-    make("TextLabel",{
-        Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=16, Text="🏠", TextColor3=FG
-    })
-    -- ข้อความ
-    make("TextLabel",{
-        Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-60,1,0),
-        Font=Enum.Font.GothamBold, TextSize=16, Text="Home",
-        TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG
-    })
-    -- ลูกศรขวา
-    local chevron = make("TextLabel",{
-        Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=18, Text="›", TextColor3=FG,
-        TextXAlignment=Enum.TextXAlignment.Right
-    })
+-- ให้แน่ใจว่ามี Layout
+local list = LEFT:FindFirstChildOfClass("UIListLayout")
+if not list then
+    list = make("UIListLayout", {
+        Parent = LEFT,
+        Padding = UDim.new(0,10),
+        FillDirection = Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Begin
+    },{})
+end
 
-    -- เอฟเฟกต์ hover
-    btnHome.MouseEnter:Connect(function()
-        TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
-        TS:Create(chevron, TweenInfo.new(0.08), {TextTransparency = 0}):Play()
-    end)
-    btnHome.MouseLeave:Connect(function()
-        TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
-        TS:Create(chevron, TweenInfo.new(0.12), {TextTransparency = 0}):Play()
-    end)
+-- ============== 3) สร้างปุ่ม Home ใหม่อันเดียว ==============
+local btnHome = make("TextButton",{
+    Name="UFOX_HomeBtn", Parent=LEFT, AutoButtonColor=false,
+    Size=UDim2.new(1,-8,0,48), BackgroundColor3=SUB, Text="", ClipsDescendants=true,
+    LayoutOrder=1, ZIndex=50, Active=true, Selectable=false
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,10)}),
+    make("UIStroke",{
+        Name="UFOX_Border", Color=ACCENT, Thickness=2, Transparency=0,
+        ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
+    })
+})
 
-    -- คลิก → เปิดหน้า Home (ถ้ามีฟังก์ชัน)
-    btnHome.MouseButton1Click:Connect(function()
-        if typeof(_G.UFO_OpenHomePage)=="function" then
-            pcall(_G.UFO_OpenHomePage)
+local row = make("Frame",{
+    Parent=btnHome, BackgroundTransparency=1, Size=UDim2.new(1,-16,1,0),
+    Position=UDim2.new(0,8,0,0), ZIndex=51
+},{
+    make("UIListLayout",{
+        FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+        HorizontalAlignment=Enum.HorizontalAlignment.Left,
+        VerticalAlignment=Enum.VerticalAlignment.Center
+    })
+})
+make("TextLabel",{
+    Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+    Font=Enum.Font.GothamBold, TextSize=16, Text="👽", TextColor3=FG, ZIndex=51
+},{})
+make("TextLabel",{
+    Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+    Font=Enum.Font.GothamBold, TextSize=16, Text="Home",
+    TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG, ZIndex=51
+},{})
+
+-- Hover effect
+btnHome.MouseEnter:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+end)
+btnHome.MouseLeave:Connect(function()
+    TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+end)
+
+-- Click action
+btnHome.MouseButton1Click:Connect(function()
+    if typeof(_G.UFO_ShowPage) == "function" then
+        -- ถ้าใช้ระบบแท็บ ให้ไปหน้า Home
+        pcall(_G.UFO_ShowPage, "Home")
+    elseif typeof(_G.UFO_OpenHomePage)=="function" then
+        pcall(_G.UFO_OpenHomePage)
+    end
+end)
+
+-- กันโดนแก้ไขขอบ: คอยรีเฟรช stroke ให้เป็นเขียวเสมอ
+task.spawn(function()
+    while btnHome.Parent do
+        local s = btnHome:FindFirstChild("UFOX_Border")
+        if not s then
+            s = make("UIStroke",{
+                Name="UFOX_Border", Color=ACCENT, Thickness=2, Transparency=0,
+                ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
+            },{})
+            s.Parent = btnHome
         else
-            -- กะพริบ content เบา ๆ ให้ฟีดแบ็ก
-            TS:Create(content, TweenInfo.new(0.10), {BackgroundTransparency = 0.02}):Play()
-            task.delay(0.12, function()
-                TS:Create(content, TweenInfo.new(0.10), {BackgroundTransparency = 0}):Play()
-            end)
-        end
-    end)
-end
-
--- 3) ตัวช่วย: ยืดปุ่มอื่นๆ ในแผงซ้ายให้กว้างเท่ากันด้วย (ถ้ามี)
-task.defer(function()
-    for _,b in ipairs(LEFT:GetChildren()) do
-        if b:IsA("TextButton") and b.Name ~= "UFOX_HomeBtn" then
-            b.Size = UDim2.new(1,-8,0,48)
-            local stroke = b:FindFirstChildOfClass("UIStroke")
-            if not stroke then
-                make("UIStroke",{
-                    Parent=b, Color=ACCENT, Thickness=2, Transparency=0,
-                    ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round
-                })
-            else
-                stroke.Color, stroke.Thickness, stroke.Transparency = ACCENT, 2, 0
-                stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-                stroke.LineJoinMode   = Enum.LineJoinMode.Round
+            if s.Color ~= ACCENT then s.Color = ACCENT end
+            if s.Thickness ~= 2 then s.Thickness = 2 end
+            if s.Transparency ~= 0 then s.Transparency = 0 end
+            if s.ApplyStrokeMode ~= Enum.ApplyStrokeMode.Border then
+                s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
             end
         end
+        task.wait(0.3)
     end
 end)
 ----------------------------------------------------------------
