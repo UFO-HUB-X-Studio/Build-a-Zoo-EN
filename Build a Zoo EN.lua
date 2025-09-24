@@ -1266,123 +1266,124 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 📏 UFOX Force-Compact Rows (auto shrink + full width)
--- ทำให้แถวปุ่มทางขวา "เตี้ยลง (30px) + ยาวเต็มกรอบ"
--- ใช้ได้เลย ไม่ต้องรู้ชื่อวัตถุ (จับจากโครงสร้างภายใน)
+-- 📏 UFOX Compact Right Rows — make rows shorter & full width
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
--- ใส่ Padding และ ListLayout ให้โซน content (ถ้ายังไม่มี)
-local pad = content:FindFirstChild("UFOX_ContentPadding")
-if not pad then
-    pad = Instance.new("UIPadding")
-    pad.Name = "UFOX_ContentPadding"
-    pad.PaddingLeft   = UDim.new(0, 8)
-    pad.PaddingRight  = UDim.new(0, 8)
-    pad.PaddingTop    = UDim.new(0, 8)
-    pad.PaddingBottom = UDim.new(0, 8)
-    pad.Parent = content
-end
-local list = content:FindFirstChild("UFOX_ContentList")
-if not list then
-    list = Instance.new("UIListLayout")
-    list.Name = "UFOX_ContentList"
-    list.Padding = UDim.new(0, 6)
-    list.SortOrder = Enum.SortOrder.LayoutOrder
-    list.Parent = content
-end
+-- หา root GUI จาก content
+local rootGui = (content and content:FindFirstAncestorOfClass("ScreenGui"))
+             or (content and content:FindFirstAncestorOfClass("LayerCollector"))
+             or game:GetService("CoreGui")
 
--- ตัวช่วย: ตรวจว่าเป็น "แถวปุ่ม" จริงไหม (มีสโตรค + label + สวิตช์)
+-- helper: เป็นแถวสไตล์กล่องเขียวไหม?
 local function isRow(frame: Instance)
     if not frame:IsA("Frame") then return false end
+    if frame:GetAttribute("UFOX_RowSkip") then return false end
     local hasStroke = frame:FindFirstChildOfClass("UIStroke") ~= nil
     local hasLabel  = frame:FindFirstChildWhichIsA("TextLabel", true) ~= nil
     local hasBtn    = frame:FindFirstChildWhichIsA("TextButton", true) ~= nil
+    -- ต้องไม่ใช่ปุ่มฝั่งซ้าย (ซึ่งมักจะไม่มีสวิตช์)
     return hasStroke and hasLabel and hasBtn
 end
 
--- สไตล์แถว: เตี้ยลง + ยาวเต็ม + จัดตำแหน่ง label/สวิตช์
-local function styleRow(row)
-    if not row or not row.Parent then return end
-    if row:GetAttribute("UFOX_Styled") then return end  -- กันสไตล์ซ้ำ
+-- จัดทรงให้ "กอง" (parent ที่มี row >=2)
+local function styleStack(stack: Instance)
+    if not stack or not stack.Parent then return end
+    -- padding + layout
+    local pad = stack:FindFirstChild("UFOX_Pad") or Instance.new("UIPadding")
+    pad.Name = "UFOX_Pad"; pad.PaddingTop = UDim.new(0,8); pad.PaddingBottom = UDim.new(0,8)
+    pad.PaddingLeft = UDim.new(0,8); pad.PaddingRight = UDim.new(0,8); pad.Parent = stack
 
-    -- ขนาด: เตี้ย 30px และยาวเต็มกรอบ (เว้นขอบรวม 16px จาก UIPadding)
-    row.Size = UDim2.new(1, -16, 0, 30)
-    row.Position = UDim2.fromOffset(0, 0)
+    local list = stack:FindFirstChild("UFOX_List") or Instance.new("UIListLayout")
+    list.Name = "UFOX_List"; list.Padding = UDim.new(0,6)
+    list.SortOrder = Enum.SortOrder.LayoutOrder; list.Parent = stack
 
-    -- ขอบเขียวคมชัด
-    local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
-    stroke.Color = ACCENT
-    stroke.Thickness = 2
-    stroke.Transparency = 0
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.LineJoinMode = Enum.LineJoinMode.Round
-    stroke.Parent = row
+    -- จัดทุกแถว
+    for _,row in ipairs(stack:GetChildren()) do
+        if isRow(row) then
+            -- full width + short height
+            row.Size = UDim2.new(1, -16, 0, 30)
+            row.AutomaticSize = Enum.AutomaticSize.None
 
-    -- มุมโค้ง (ถ้ายังไม่มี)
-    if not row:FindFirstChildOfClass("UICorner") then
-        local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0, 10)
-        c.Parent = row
-    end
+            -- ขอบเขียวคม
+            local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+            stroke.Color = ACCENT; stroke.Thickness = 2
+            stroke.Transparency = 0
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.LineJoinMode = Enum.LineJoinMode.Round
+            stroke.Parent = row
 
-    -- ป้ายชื่อ
-    local label = row:FindFirstChildWhichIsA("TextLabel", true)
-    if label then
-        label.TextSize = 13
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Position = UDim2.new(0, 12, 0, 0)
-        label.Size = UDim2.new(1, -120, 1, 0) -- เว้นที่ให้สวิตช์ด้านขวา
-    end
+            -- มุมโค้ง
+            if not row:FindFirstChildOfClass("UICorner") then
+                local c = Instance.new("UICorner")
+                c.CornerRadius = UDim.new(0,10)
+                c.Parent = row
+            end
 
-    -- ปุ่มสวิตช์ (หรือกลุ่ม TextButton ภายใน)
-    local toggle = row:FindFirstChildWhichIsA("TextButton", true)
-    if toggle then
-        toggle.AnchorPoint = Vector2.new(1, 0.5)
-        toggle.Position = UDim2.new(1, -10, 0.5, 0)
-        toggle.Size = UDim2.fromOffset(48, 20)
+            -- label ชิดซ้าย
+            local label = row:FindFirstChildWhichIsA("TextLabel", true)
+            if label then
+                label.TextSize = 13
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.Position = UDim2.new(0,12,0,0)
+                label.Size = UDim2.new(1, -120, 1, 0)
+            end
 
-        -- ลูกบิดภายใน (ถ้ามี)
-        local knob = toggle:FindFirstChildWhichIsA("Frame")
-        if knob then
-            knob.Size = UDim2.fromOffset(18, 18)
-            knob.Position = UDim2.new(0, 2, 0, 1)
-            if not knob:FindFirstChildOfClass("UICorner") then
-                local kc = Instance.new("UICorner")
-                kc.CornerRadius = UDim.new(1, 0)
-                kc.Parent = knob
+            -- toggle ชิดขวา
+            local toggle = row:FindFirstChildWhichIsA("TextButton", true)
+            if toggle then
+                toggle.AnchorPoint = Vector2.new(1,0.5)
+                toggle.Position = UDim2.new(1, -10, 0.5, 0)
+                toggle.Size = UDim2.fromOffset(48,20)
+                local knob = toggle:FindFirstChildWhichIsA("Frame")
+                if knob then
+                    knob.Size = UDim2.fromOffset(18,18)
+                    knob.Position = UDim2.new(0,2,0,1)
+                    if not knob:FindFirstChildOfClass("UICorner") then
+                        local kc = Instance.new("UICorner")
+                        kc.CornerRadius = UDim.new(1,0); kc.Parent = knob
+                    end
+                end
             end
         end
     end
+end
 
-    row:SetAttribute("UFOX_Styled", true)
-
-    -- ถ้ามีใครเปลี่ยนขนาด/สีทีหลัง → จะรีสไตล์กลับให้
-    if not row:GetAttribute("UFOX_Watch") then
-        row:SetAttribute("UFOX_Watch", true)
-        task.spawn(function()
-            while row.Parent do
-                -- บังคับคงสภาพทุก ๆ 0.3 วินาที
-                row.Size = UDim2.new(1, -16, 0, 30)
-                if stroke.Parent ~= row then stroke.Parent = row end
-                task.wait(0.3)
+-- หา "กองทางขวา" โดยสแกนทั้ง GUI
+local function findStacks()
+    local stacks = {}
+    for _,f in ipairs(rootGui:GetDescendants()) do
+        if f:IsA("Frame") then
+            local count = 0
+            for _,c in ipairs(f:GetChildren()) do
+                if isRow(c) then count += 1 end
             end
-        end)
+            if count >= 2 then table.insert(stacks, f) end
+        end
     end
+    return stacks
 end
 
--- สไตล์ทุกแถวที่มีอยู่ตอนนี้
-for _, ch in ipairs(content:GetChildren()) do
-    if isRow(ch) then styleRow(ch) end
+-- จัดทรงตอนนี้ทันที
+for _,stack in ipairs(findStacks()) do
+    styleStack(stack)
 end
 
--- ถ้ามีการเพิ่มแถวใหม่ภายหลัง → ใส่สไตล์ให้เองอัตโนมัติ
-if not content:GetAttribute("UFOX_RowStylerInstalled") then
-    content:SetAttribute("UFOX_RowStylerInstalled", true)
-    content.ChildAdded:Connect(function(child)
-        task.wait(0.05)       -- เผื่อให้ลูกภายในสร้างเสร็จ
-        if isRow(child) then
-            styleRow(child)
+-- เฝ้าดู ถ้า UI มีการเพิ่ม/รีเฟรช
+if not rootGui:GetAttribute("UFOX_RowAutoStyle") then
+    rootGui:SetAttribute("UFOX_RowAutoStyle", true)
+    rootGui.DescendantAdded:Connect(function(d)
+        task.wait(0.05)
+        if d:IsA("Frame") then
+            -- ถ้ากรอบนี้เป็น row → จัดทั้งกองของมัน
+            if isRow(d) and d.Parent then
+                styleStack(d.Parent)
+            else
+                -- หรือถ้าเป็นกองใหม่ → จัดเลย
+                local cnt = 0
+                for _,c in ipairs(d:GetChildren()) do if isRow(c) then cnt += 1 end end
+                if cnt >= 2 then styleStack(d) end
+            end
         end
     end)
 end
