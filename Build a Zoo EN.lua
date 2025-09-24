@@ -244,98 +244,80 @@ end
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
 ----------------------------------------------------------------
--- 🏠 HOME PAGE: Header สีขาว + เนื้อหาเลื่อนขึ้น/ลงได้
+-- 🏠 HOME PAGE — header คงที่ + body เลื่อนขึ้นลง + ขอบพอดี
 ----------------------------------------------------------------
-local function ensurePage(pageName, icon, titleText)
-    local old = content:FindFirstChild("pg"..pageName)
+local PAGE_PAD = 12      -- ระยะห่างจากกรอบเขียวรอบๆ
+local BODY_GAP = 8       -- ช่องไฟระหว่างแถวใน body
+local HEADER_H = 32
+
+local function createHomePage()
+    local old = content:FindFirstChild("pgHome")
     if old then old:Destroy() end
 
-    local page = make("Frame",{
-        Name = "pg"..pageName, Parent = content,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1,-20,1,-20),
-        Position = UDim2.new(0,10,0,10),
-        Visible = false
+    -- ✅ มี margin รอบๆ (ไม่ชิดขอบเขียว)
+    local pgHome = make("Frame",{
+        Name="pgHome", Parent=content, BackgroundTransparency=1,
+        Size=UDim2.new(1, -PAGE_PAD*2, 1, -PAGE_PAD*2),
+        Position=UDim2.new(0, PAGE_PAD, 0, PAGE_PAD),
+        Visible=false
     },{})
 
-    -- หัวข้อสีขาวด้านบน (เหมือนที่ชี้ในรูป Shop)
+    -- ✅ Header อยู่บนสุด ไม่เลื่อน
     make("TextLabel",{
-        Name="Header", Parent=page, BackgroundTransparency=1,
-        Size=UDim2.new(1,-8,0,28), Position=UDim2.new(0,4,0,0),
+        Name="Header", Parent=pgHome, BackgroundTransparency=1,
+        Size=UDim2.new(1,0,0,HEADER_H), Position=UDim2.new(0,0,0,0),
         Font=Enum.Font.GothamBold, TextSize=22,
-        Text=(icon or "").." "..(titleText or pageName),
-        TextColor3=Color3.fromRGB(240,240,240),
+        Text="🏠 Home", TextColor3=Color3.fromRGB(240,240,240),
         TextXAlignment=Enum.TextXAlignment.Left
     },{})
 
-    -- พื้นที่เนื้อหาที่เลื่อนขึ้น-ลงได้
+    -- ✅ Body เลื่อนขึ้นลงได้
     local body = make("ScrollingFrame",{
-        Name="Body", Parent=page,
-        BackgroundColor3=Color3.fromRGB(12,12,12),
-        BorderSizePixel=0,
-        Size=UDim2.new(1,0,1,-36),    -- เว้นที่ให้ Header
-        Position=UDim2.new(0,0,0,32),
-        AutomaticCanvasSize=Enum.AutomaticSize.Y,
-        CanvasSize=UDim2.new(0,0,0,0),
-        ScrollBarThickness=6,
-        ScrollBarImageTransparency=0.2,
-        ClipsDescendants=true
+        Name="Body", Parent=pgHome, BackgroundTransparency=1,
+        Size=UDim2.new(1,0,1,-(HEADER_H+4)), Position=UDim2.new(0,0,0,HEADER_H+4),
+        AutomaticCanvasSize=Enum.AutomaticSize.Y, CanvasSize=UDim2.new(0,0,0,0),
+        ScrollBarThickness=6, ScrollBarImageTransparency=0.15, ClipsDescendants=true
     },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.05}),
-        make("UIPadding",{PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),
-                          PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8)}),
         make("UIListLayout",{
             FillDirection=Enum.FillDirection.Vertical,
-            Padding=UDim.new(0,8), SortOrder=Enum.SortOrder.LayoutOrder
+            Padding=UDim.new(0,BODY_GAP), SortOrder=Enum.SortOrder.LayoutOrder
+        }),
+        make("UIPadding",{
+            PaddingTop=UDim.new(0,BODY_GAP), PaddingBottom=UDim.new(0,BODY_GAP),
+            PaddingLeft=UDim.new(0,BODY_GAP), PaddingRight=UDim.new(0,BODY_GAP)
         })
     })
 
-    return page
-end
-
--- ✅ สร้างหน้า Home แบบใหม่
-local pgHome = ensurePage("Home","🏠","Home")
-
--- ✅ ย้าย “แถวระบบ” เดิมเข้าไปใน Home.Body อัตโนมัติ (ถ้าเจอ)
-local moveNames = {
-    "UFOX_RowAFK",        -- AFK switch row
-    "UFOX_RowCollect",    -- Auto Collect row (ชื่อของคุณอาจเป็นอย่างอื่น)
-    "UFOX_RowAutoCollect",
-    "UFOX_RowEgg",        -- Auto Egg row
-    "UFOX_RowAutoEgg"
-}
-for _,nm in ipairs(moveNames) do
-    local it = content:FindFirstChild(nm)
-    if it and it:IsA("GuiObject") then
-        it.Parent = pgHome.Body
-        it.Size = UDim2.new(1,-4,it.Size.Y.Scale,it.Size.Y.Offset) -- กว้างเต็มภายใน
+    -- ✅ ย้ายแถวระบบเดิมลง body และปรับความกว้างให้เต็ม (ชิดขอบสวย)
+    local moveNames = {"UFOX_RowAFK","UFOX_RowCollect","UFOX_RowEgg"}
+    for _,nm in ipairs(moveNames) do
+        local it = content:FindFirstChild(nm)
+        if it and it:IsA("GuiObject") then
+            it.Parent = body
+            it.Size = UDim2.new(1, 0, 0, it.Size.Y.Offset > 0 and it.Size.Y.Offset or 44)
+        end
     end
+
+    return pgHome
 end
 
--- ✅ Hook ปุ่มซ้ายให้สลับหน้า (ใช้ร่วมกับของที่มีอยู่)
-local pages = {
-    Home    = pgHome,
-    Shop    = content:FindFirstChild("pgShop"),
-    Fishing = content:FindFirstChild("pgFishing"),
-}
+-- สร้างหน้า Home ใหม่ (พอดีกับกรอบ)
+local pgHome = createHomePage()
 
-_G.UFO_ShowPage = function(name)
-    for k,pg in pairs(pages) do
-        if pg then pg.Visible = (k==name) end
-    end
+-- Hook ปุ่ม Home ให้แสดงหน้า Home และซ่อนหน้าที่เหลือ
+local function showPage(name)
+    if content:FindFirstChild("pgHome")   then content.pgHome.Visible   = (name=="Home")   end
+    if content:FindFirstChild("pgShop")   then content.pgShop.Visible   = (name=="Shop")   end
+    if content:FindFirstChild("pgFishing")then content.pgFishing.Visible= (name=="Fishing")end
 end
 
-local btnHome  = left:FindFirstChild("UFOX_HomeBtn")
-local btnShop  = left:FindFirstChild("UFOX_ShopBtn")
-local btnFish  = left:FindFirstChild("UFOX_FishingBtn")
+local btnHome = left:FindFirstChild("UFOX_HomeBtn")
+if btnHome then
+    btnHome.MouseButton1Click:Connect(function() showPage("Home") end)
+end
 
-if btnHome then btnHome.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Home") end) end
-if btnShop then btnShop.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Shop") end) end
-if btnFish then btnFish.MouseButton1Click:Connect(function() _G.UFO_ShowPage("Fishing") end) end
-
--- เปิดเริ่มต้นเป็นหน้า Home
-_G.UFO_ShowPage("Home")
+-- เปิดเริ่มต้นให้เห็นหน้า Home
+showPage("Home")
 ----------------------------------------------------------------
 -- 🔁 AFK AUTO-CLICK (anti-kick) + DARK OVERLAY (Roblox Image ID)
 -- - กันเตะ: VirtualUser + VirtualInputManager + Idled hook
