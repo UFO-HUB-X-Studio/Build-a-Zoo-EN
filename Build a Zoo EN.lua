@@ -965,6 +965,169 @@ end)
 -- เริ่มที่ Home
 ShowPage("Home")
 ----------------------------------------------------------------
+-- 🎣 Fishing Tab (ปุ่มที่ 3) — แยกปุ่ม + หน้าเนื้อหา + สลับแท็บครบ
+-- ต้องมีตัวแปรจาก UI หลัก: left, content, TS, ACCENT, SUB, FG
+-- (มี fallback ให้ด้านล่าง หากตัวแปรยังไม่ถูกประกาศ)
+----------------------------------------------------------------
+local TS      = TS or game:GetService("TweenService")
+local ACCENT  = ACCENT  or Color3.fromRGB(0,255,140)
+local SUB     = SUB     or Color3.fromRGB(22,22,22)
+local FG      = FG      or Color3.fromRGB(235,235,235)
+
+local function make(class, props, kids)
+    local o = Instance.new(class)
+    for k,v in pairs(props or {}) do o[k]=v end
+    for _,c in ipairs(kids or {}) do c.Parent=o end
+    return o
+end
+
+-- ===== Ensure Layout on the left =====
+local list = left:FindFirstChildOfClass("UIListLayout")
+if not list then
+    make("UIListLayout", {Parent=left, Padding=UDim.new(0,10)})
+end
+
+-- ===== Ensure pages exist (Home / Shop) =====
+local pgHome = content:FindFirstChild("pgHome")
+if not pgHome then
+    pgHome = make("Frame", {
+        Name="pgHome", Parent=content, BackgroundTransparency=1,
+        Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=true
+    })
+end
+
+local pgShop = content:FindFirstChild("pgShop")
+if not pgShop then
+    pgShop = make("Frame", {
+        Name="pgShop", Parent=content, BackgroundTransparency=1,
+        Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=false
+    })
+    make("TextLabel",{
+        Parent=pgShop, BackgroundTransparency=1, Size=UDim2.new(1,0,0,28),
+        Position=UDim2.new(0,0,0,0), Font=Enum.Font.GothamBold, TextSize=20,
+        Text="🛒 Shop", TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left
+    })
+end
+
+-- ===== Create/Replace Fishing page =====
+local pgFishing = content:FindFirstChild("pgFishing")
+if pgFishing then pgFishing:Destroy() end
+pgFishing = make("Frame", {
+    Name="pgFishing", Parent=content, BackgroundTransparency=1,
+    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10), Visible=false
+})
+-- ตัวอย่างเนื้อหาในหน้า Fishing
+make("TextLabel",{
+    Parent=pgFishing, BackgroundTransparency=1, Size=UDim2.new(1,0,0,28),
+    Position=UDim2.new(0,0,0,0), Font=Enum.Font.GothamBold, TextSize=20,
+    Text="🎣 Fishing", TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left
+})
+
+-- ===== Grab existing buttons (Home / Shop) if any =====
+local btnHome = left:FindFirstChild("UFOX_HomeBtn")
+local btnShop = left:FindFirstChild("UFOX_ShopBtn")
+
+-- ===== Build Fishing button (แยกปุ่มเป็นชิ้นที่ 3) =====
+local oldFish = left:FindFirstChild("UFOX_FishingBtn")
+if oldFish then oldFish:Destroy() end
+
+local btnFishing = make("TextButton",{
+    Name="UFOX_FishingBtn", Parent=left, AutoButtonColor=false, Text="",
+    Size=UDim2.new(1,-16,0,38), BackgroundColor3=SUB, ClipsDescendants=true
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,10)}),
+    -- กรอบเขียวคมชัด (ไม่จาง/ไม่หาย)
+    make("UIStroke",{
+        Color=ACCENT, Thickness=2, Transparency=0,
+        ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+    })
+})
+
+-- จัดลำดับ: Home(1) → Shop(2) → Fishing(3)
+if btnHome then btnHome.LayoutOrder = 1 end
+if btnShop then btnShop.LayoutOrder = 2 end
+btnFishing.LayoutOrder = 3
+
+-- เนื้อหาภายในปุ่ม Fishing
+local row = make("Frame",{
+    Parent=btnFishing, BackgroundTransparency=1,
+    Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)
+},{
+    make("UIListLayout",{
+        FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+        HorizontalAlignment=Enum.HorizontalAlignment.Left,
+        VerticalAlignment=Enum.VerticalAlignment.Center
+    })
+})
+make("TextLabel",{
+    Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
+    Font=Enum.Font.GothamBold, TextSize=16, Text="🎣", TextColor3=FG
+})
+make("TextLabel",{
+    Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
+    Font=Enum.Font.GothamBold, TextSize=15, Text="Fishing",
+    TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG
+})
+
+-- ===== ปรับสไตล์เวลา Active/Inactive (เน้นกรอบเขียว) =====
+local function setBtnActive(btn, active)
+    if not btn then return end
+    local stroke = btn:FindFirstChildOfClass("UIStroke")
+    if active then
+        TS:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
+        if stroke then stroke.Transparency = 0 end
+    else
+        TS:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
+        if stroke then stroke.Transparency = 0.15 end
+    end
+end
+
+-- ===== สลับหน้า 3 แท็บ (Home / Shop / Fishing) =====
+local function ShowPage(name)
+    local isHome    = (name=="Home")
+    local isShop    = (name=="Shop")
+    local isFishing = (name=="Fishing")
+
+    pgHome.Visible    = isHome
+    pgShop.Visible    = isShop
+    pgFishing.Visible = isFishing
+
+    setBtnActive(btnHome,    isHome)
+    setBtnActive(btnShop,    isShop)
+    setBtnActive(btnFishing, isFishing)
+
+    -- เอฟเฟกต์เล็กตอนสลับหน้า
+    TS:Create(content, TweenInfo.new(0.08), {BackgroundTransparency = 0.02}):Play()
+    task.delay(0.1, function()
+        TS:Create(content, TweenInfo.new(0.10), {BackgroundTransparency = 0}):Play()
+    end)
+end
+
+-- ===== Hook ปุ่มทั้ง 3 =====
+if btnHome and not btnHome:GetAttribute("HookedForTab") then
+    btnHome:SetAttribute("HookedForTab", true)
+    btnHome.MouseButton1Click:Connect(function()
+        if typeof(_G.UFO_OpenHomePage)=="function" then pcall(_G.UFO_OpenHomePage) end
+        ShowPage("Home")
+    end)
+end
+
+if btnShop and not btnShop:GetAttribute("HookedForTab") then
+    btnShop:SetAttribute("HookedForTab", true)
+    btnShop.MouseButton1Click:Connect(function()
+        if typeof(_G.UFO_OpenShopPage)=="function" then pcall(_G.UFO_OpenShopPage) end
+        ShowPage("Shop")
+    end)
+end
+
+btnFishing.MouseButton1Click:Connect(function()
+    if typeof(_G.UFO_OpenFishingPage)=="function" then pcall(_G.UFO_OpenFishingPage) end
+    ShowPage("Fishing")
+end)
+
+-- เริ่มต้นแสดงหน้า Home
+ShowPage("Home")
+----------------------------------------------------------------
 -- ✅ UFOX BORDER GUARD — Force green border & keep it forever
 ----------------------------------------------------------------
 local LEFT = left
