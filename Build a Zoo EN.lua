@@ -1266,122 +1266,123 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
     end)
 end
 ----------------------------------------------------------------
--- 📏 UFOX Compact Right Rows — make rows shorter & full width
+-- ✅ UFOX Compact Rows v2 (no double borders, right panel only)
+-- ทำปุ่มขวาให้เตี้ย (30px) และยาวเต็ม, ไม่แตะกรอบนอก
 ----------------------------------------------------------------
 local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
--- หา root GUI จาก content
-local rootGui = (content and content:FindFirstAncestorOfClass("ScreenGui"))
-             or (content and content:FindFirstAncestorOfClass("LayerCollector"))
-             or game:GetService("CoreGui")
-
--- helper: เป็นแถวสไตล์กล่องเขียวไหม?
-local function isRow(frame: Instance)
-    if not frame:IsA("Frame") then return false end
-    if frame:GetAttribute("UFOX_RowSkip") then return false end
-    local hasStroke = frame:FindFirstChildOfClass("UIStroke") ~= nil
-    local hasLabel  = frame:FindFirstChildWhichIsA("TextLabel", true) ~= nil
-    local hasBtn    = frame:FindFirstChildWhichIsA("TextButton", true) ~= nil
-    -- ต้องไม่ใช่ปุ่มฝั่งซ้าย (ซึ่งมักจะไม่มีสวิตช์)
-    return hasStroke and hasLabel and hasBtn
+local function isRightRow(f: Instance)
+    if not f:IsA("Frame") then return false end
+    if f:FindFirstChildOfClass("UIListLayout") then return false end -- กันจับกรอบกอง
+    local hasStroke = f:FindFirstChildOfClass("UIStroke") ~= nil
+    local hasCorner = f:FindFirstChildOfClass("UICorner") ~= nil
+    local hasLabel  = f:FindFirstChildWhichIsA("TextLabel", true) ~= nil
+    local hasBtn    = f:FindFirstChildWhichIsA("TextButton", true) ~= nil
+    return hasStroke and hasCorner and hasLabel and hasBtn
 end
 
--- จัดทรงให้ "กอง" (parent ที่มี row >=2)
-local function styleStack(stack: Instance)
-    if not stack or not stack.Parent then return end
-    -- padding + layout
-    local pad = stack:FindFirstChild("UFOX_Pad") or Instance.new("UIPadding")
-    pad.Name = "UFOX_Pad"; pad.PaddingTop = UDim.new(0,8); pad.PaddingBottom = UDim.new(0,8)
-    pad.PaddingLeft = UDim.new(0,8); pad.PaddingRight = UDim.new(0,8); pad.Parent = stack
+local function styleOneRow(row: Frame)
+    -- ปรับขนาดแถว
+    row.AutomaticSize = Enum.AutomaticSize.None
+    row.Size = UDim2.new(1, -16, 0, 30)  -- เตี้ยลง และยาวเต็ม (เผื่อขอบซ้ายขวารวม 16px)
 
-    local list = stack:FindFirstChild("UFOX_List") or Instance.new("UIListLayout")
-    list.Name = "UFOX_List"; list.Padding = UDim.new(0,6)
-    list.SortOrder = Enum.SortOrder.LayoutOrder; list.Parent = stack
+    -- ใช้ stroke เดิม (ไม่สร้างใหม่เพื่อไม่ให้ซ้อน)
+    local stroke = row:FindFirstChildOfClass("UIStroke")
+    if stroke then
+        stroke.Color = ACCENT
+        stroke.Thickness = 2
+        stroke.Transparency = 0
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.LineJoinMode = Enum.LineJoinMode.Round
+    end
 
-    -- จัดทุกแถว
-    for _,row in ipairs(stack:GetChildren()) do
-        if isRow(row) then
-            -- full width + short height
-            row.Size = UDim2.new(1, -16, 0, 30)
-            row.AutomaticSize = Enum.AutomaticSize.None
+    -- จัด label ชิดซ้าย
+    local label = row:FindFirstChildWhichIsA("TextLabel", true)
+    if label then
+        label.TextSize = 13
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Position = UDim2.new(0,12,0,0)
+        label.Size = UDim2.new(1, -120, 1, 0)
+        label.BackgroundTransparency = 1
+    end
 
-            -- ขอบเขียวคม
-            local stroke = row:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
-            stroke.Color = ACCENT; stroke.Thickness = 2
-            stroke.Transparency = 0
-            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            stroke.LineJoinMode = Enum.LineJoinMode.Round
-            stroke.Parent = row
-
-            -- มุมโค้ง
-            if not row:FindFirstChildOfClass("UICorner") then
+    -- จัดสวิตช์ชิดขวา
+    local toggle = row:FindFirstChildWhichIsA("TextButton", true)
+    if toggle then
+        toggle.AnchorPoint = Vector2.new(1,0.5)
+        toggle.Position = UDim2.new(1, -10, 0.5, 0)
+        toggle.Size = UDim2.fromOffset(48,20)
+        toggle.AutoButtonColor = false
+        local knob = toggle:FindFirstChildWhichIsA("Frame")
+        if knob then
+            knob.Size = UDim2.fromOffset(18,18)
+            knob.Position = UDim2.new(0,2,0,1)
+            if not knob:FindFirstChildOfClass("UICorner") then
                 local c = Instance.new("UICorner")
-                c.CornerRadius = UDim.new(0,10)
-                c.Parent = row
-            end
-
-            -- label ชิดซ้าย
-            local label = row:FindFirstChildWhichIsA("TextLabel", true)
-            if label then
-                label.TextSize = 13
-                label.TextXAlignment = Enum.TextXAlignment.Left
-                label.Position = UDim2.new(0,12,0,0)
-                label.Size = UDim2.new(1, -120, 1, 0)
-            end
-
-            -- toggle ชิดขวา
-            local toggle = row:FindFirstChildWhichIsA("TextButton", true)
-            if toggle then
-                toggle.AnchorPoint = Vector2.new(1,0.5)
-                toggle.Position = UDim2.new(1, -10, 0.5, 0)
-                toggle.Size = UDim2.fromOffset(48,20)
-                local knob = toggle:FindFirstChildWhichIsA("Frame")
-                if knob then
-                    knob.Size = UDim2.fromOffset(18,18)
-                    knob.Position = UDim2.new(0,2,0,1)
-                    if not knob:FindFirstChildOfClass("UICorner") then
-                        local kc = Instance.new("UICorner")
-                        kc.CornerRadius = UDim.new(1,0); kc.Parent = knob
-                    end
-                end
+                c.CornerRadius = UDim.new(1,0)
+                c.Parent = knob
             end
         end
     end
 end
 
--- หา "กองทางขวา" โดยสแกนทั้ง GUI
-local function findStacks()
+local function styleStack(stack: Instance)
+    -- ใส่ padding+layout ให้ “กอง” ถ้ายังไม่มี
+    local pad = stack:FindFirstChild("UFOX_Pad") or Instance.new("UIPadding")
+    pad.Name = "UFOX_Pad"
+    pad.PaddingTop = UDim.new(0,8)
+    pad.PaddingBottom = UDim.new(0,8)
+    pad.PaddingLeft = UDim.new(0,8)
+    pad.PaddingRight = UDim.new(0,8)
+    pad.Parent = stack
+
+    local list = stack:FindFirstChild("UFOX_List") or Instance.new("UIListLayout")
+    list.Name = "UFOX_List"
+    list.Padding = UDim.new(0,8)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Parent = stack
+
+    for _,child in ipairs(stack:GetChildren()) do
+        if isRightRow(child) then
+            styleOneRow(child)
+        end
+    end
+end
+
+-- หา “กองด้านขวา” จาก content: คือ frame ที่มีลูกเป็น row >=2
+local function findRightStacks(root: Instance)
     local stacks = {}
-    for _,f in ipairs(rootGui:GetDescendants()) do
+    for _,f in ipairs(root:GetDescendants()) do
         if f:IsA("Frame") then
-            local count = 0
+            local cnt = 0
             for _,c in ipairs(f:GetChildren()) do
-                if isRow(c) then count += 1 end
+                if isRightRow(c) then cnt += 1 end
             end
-            if count >= 2 then table.insert(stacks, f) end
+            if cnt >= 2 then table.insert(stacks, f) end
         end
     end
     return stacks
 end
 
--- จัดทรงตอนนี้ทันที
-for _,stack in ipairs(findStacks()) do
+local root = content or script.Parent
+for _,stack in ipairs(findRightStacks(root)) do
     styleStack(stack)
 end
 
--- เฝ้าดู ถ้า UI มีการเพิ่ม/รีเฟรช
-if not rootGui:GetAttribute("UFOX_RowAutoStyle") then
-    rootGui:SetAttribute("UFOX_RowAutoStyle", true)
-    rootGui.DescendantAdded:Connect(function(d)
+-- Auto-apply ถ้ามีการสร้าง UI ใหม่
+if root and not root:GetAttribute("UFOX_CompactRowsv2") then
+    root:SetAttribute("UFOX_CompactRowsv2", true)
+    root.DescendantAdded:Connect(function(d)
         task.wait(0.05)
-        if d:IsA("Frame") then
-            -- ถ้ากรอบนี้เป็น row → จัดทั้งกองของมัน
-            if isRow(d) and d.Parent then
+        if d and d.Parent then
+            if isRightRow(d) then
                 styleStack(d.Parent)
-            else
-                -- หรือถ้าเป็นกองใหม่ → จัดเลย
+            elseif d:IsA("Frame") then
+                -- เผื่อกรอบกองถูกสร้างทีหลัง
                 local cnt = 0
-                for _,c in ipairs(d:GetChildren()) do if isRow(c) then cnt += 1 end end
+                for _,c in ipairs(d:GetChildren()) do
+                    if isRightRow(c) then cnt += 1 end
+                end
                 if cnt >= 2 then styleStack(d) end
             end
         end
