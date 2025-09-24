@@ -243,21 +243,27 @@ end
 -- เรียกทันที + เรียกซ้ำเมื่อมีการเพิ่มของใหม่
 forceLeftOrder()
 left.ChildAdded:Connect(function() task.defer(forceLeftOrder) end)
--- 🏠 HOME BUTTON (เวอร์ชันเดิม ไม่มี scroll)
+----------------------------------------------------------------
+-- 🏠 HOME BUTTON (ยาวขึ้น + ขอบเขียวคม)
+----------------------------------------------------------------
 do
     -- ลบของเก่าถ้ามี
     local old = left:FindFirstChild("UFOX_HomeBtn")
     if old then old:Destroy() end
 
-    -- ปุ่ม Home แบบเดิม
+    -- ปุ่ม: ยาวแทบเต็มกรอบ (เหลือขอบซ้ายขวา 2px)
     local btnHome = make("TextButton",{
         Name="UFOX_HomeBtn", Parent=left, AutoButtonColor=false,
-        Size=UDim2.new(1,-16,0,38), -- ✅ ขนาดเดิม
+        Size=UDim2.new(1,-4,0,48),      -- ✅ ยาวขึ้น
+        Position=UDim2.fromOffset(2,10),-- ✅ ลงล่างนิด/ชิดซ้ายนิด
         BackgroundColor3=SUB, Font=Enum.Font.GothamBold,
         TextSize=16, TextColor3=FG, Text="", ClipsDescendants=true
     },{
         make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.15})
+        make("UIStroke",{                 -- ✅ ขอบเขียวกลับมาและคมชัด
+            Color=ACCENT, Thickness=2, Transparency=0,
+            ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+        })
     })
 
     -- ไอคอน + ข้อความภายในปุ่ม
@@ -271,14 +277,13 @@ do
             VerticalAlignment=Enum.VerticalAlignment.Center
         })
     })
-
     make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
         Font=Enum.Font.GothamBold, TextSize=16, Text="👽", TextColor3=FG})
     make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
         Font=Enum.Font.GothamBold, TextSize=16, Text="Home",
         TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG})
 
-    -- เอฟเฟกต์ Hover
+    -- เอฟเฟกต์ hover เล็ก ๆ
     btnHome.MouseEnter:Connect(function()
         TS:Create(btnHome, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(32,32,32)}):Play()
     end)
@@ -286,10 +291,16 @@ do
         TS:Create(btnHome, TweenInfo.new(0.12), {BackgroundColor3 = SUB}):Play()
     end)
 
-    -- คลิกเปิดหน้า Home
+    -- คลิกเปิดหน้า Home (ถ้ามีฟังก์ชันภายนอก)
     btnHome.MouseButton1Click:Connect(function()
         if typeof(_G.UFO_OpenHomePage)=="function" then
             pcall(_G.UFO_OpenHomePage)
+        else
+            -- กะพริบ content แจ้งผู้ใช้
+            TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(24,24,24)}):Play()
+            task.delay(0.12, function()
+                TS:Create(content, TweenInfo.new(0.10), {BackgroundColor3 = Color3.fromRGB(16,16,16)}):Play()
+            end)
         end
     end)
 end
