@@ -323,31 +323,29 @@ btnMini:GetPropertyChangedSignal("Text"):Connect(function()
     setCollapsedUI(btnMini.Text == "▢")
 end)
 --========================================================
--- UFO HUB X — System: Sidebar "🏠 Home" + Page Switch
+-- UFO HUB X — Sidebar  🏠 Home button (Full Width)
 --========================================================
 
--- สมมติว่ามี leftScroll (ScrollingFrame) และ contentScroll (ScrollingFrame) อยู่แล้ว
--- และมี Frame ชื่อ pgHome สำหรับหน้าหลัก
-
--- ลบปุ่ม Home เก่าออก (กันซ้อน)
+-- ลบปุ่ม Home เก่าออกก่อน
 for _,c in ipairs(leftScroll:GetChildren()) do
     if c:IsA("TextButton") and (c.Name=="Home" or c.Text=="หน้าหลัก") then
         c:Destroy()
     end
 end
 
--- สร้างปุ่ม Sidebar: 🏠 Home
+-- ปุ่ม Sidebar 🏠 Home (เต็มแนวกว้าง)
 local btnHome = Instance.new("TextButton")
 btnHome.Name = "Home"
 btnHome.Parent = leftScroll
-btnHome.Size = UDim2.new(1,0,0,36)
-btnHome.AutoButtonColor = true
+btnHome.Size = UDim2.new(1,0,0,36)  -- ขยายเต็ม 100% ของพื้นที่ leftScroll
+btnHome.Position = UDim2.new(0,0,0,0)
 btnHome.BackgroundColor3 = SUB
 btnHome.Text = "🏠 Home"
 btnHome.TextColor3 = Color3.fromRGB(255,255,255)
 btnHome.Font = Enum.Font.GothamBold
 btnHome.TextSize = 16
 btnHome.TextXAlignment = Enum.TextXAlignment.Left
+btnHome.AutoButtonColor = true
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0,8)
@@ -359,10 +357,10 @@ stroke.Transparency = 0.85
 stroke.Parent = btnHome
 
 local pad = Instance.new("UIPadding")
-pad.PaddingLeft = UDim.new(0,10)
+pad.PaddingLeft = UDim.new(0,10) -- ขยับข้อความเข้ามานิดนึง
 pad.Parent = btnHome
 
--- ระบบเลือกปุ่ม Sidebar
+-- ระบบเลือกปุ่ม
 local function setSidebarSelected(btn)
     for _,c in ipairs(leftScroll:GetChildren()) do
         if c:IsA("TextButton") then
@@ -376,27 +374,24 @@ local function setSidebarSelected(btn)
     end
 end
 
--- ระบบจัดการ Pages
+-- ระบบสลับหน้า
 local Pages = { ["Home"] = pgHome }
-
 local function showPage(name)
     for n,frame in pairs(Pages) do
         if frame and frame.Parent then
             frame.Visible = (n == name)
         end
     end
-    -- เวลาเปลี่ยนหน้า รีเซ็ต Scroll ขึ้นบนสุด
     if contentScroll then
         contentScroll.CanvasPosition = Vector2.new(0,0)
     end
 end
 
--- Event: คลิกปุ่ม Home
 btnHome.MouseButton1Click:Connect(function()
     showPage("Home")
     setSidebarSelected(btnHome)
 end)
 
--- เปิดเริ่มต้นเป็นหน้าหลัก
+-- ค่าเริ่มต้น
 showPage("Home")
 setSidebarSelected(btnHome)
