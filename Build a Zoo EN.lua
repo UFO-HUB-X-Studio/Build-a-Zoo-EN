@@ -362,82 +362,90 @@ do
 end
 --========================================================
 --========================================================
--- LEFT ONLY: Neon border auto-fit (longer than button a bit)
--- - คำนวณระยะยื่นซ้าย/ขวาแบบไดนามิกจากพื้นที่ที่มีจริง
--- - ใส่ให้ทุกปุ่มในซ้าย และปุ่มใหม่ที่จะถูกเพิ่มภายหลัง
--- - เพิ่มอย่างเดียว ไม่แตะสไตล์/ข้อความเดิม
+-- LEFT ONLY: Full-sidebar neon border (auto width from LeftScroll)
 --========================================================
 do
-    local GREEN       = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
-    local DESIRED_SIDE = 14   -- อยากให้ยื่น "แต่ละข้าง" ~14px (ยาวกว่ารูปอีกนิด)
-    local EXTRA_H      =  8   -- สูงกว่าปุ่มอีกนิดให้ดูเต็ม
-    local RADIUS       = 12
-    local THICK        = 2
+    local GREEN     = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local MARGIN_X  = 6   -- ระยะเว้นซ้าย/ขวาจากขอบ Sidebar (แต่ละข้าง)
+    local EXTRA_H   = 6   -- ให้กรอบสูงกว่าปุ่มเล็กน้อย
+    local RADIUS    = 12
+    local THICK     = 2
 
-    local function fitBorderToSpace(btn, wrap)
-        -- พื้นที่ว่างซ้าย/ขวาที่ไม่โดน container บัง
-        local parent = btn.Parent
-        if not (parent and parent.AbsoluteSize) then return end
-        local leftSpace  = btn.AbsolutePosition.X - parent.AbsolutePosition.X
-        local rightSpace = (parent.AbsolutePosition.X + parent.AbsoluteSize.X) - (btn.AbsolutePosition.X + btn.AbsoluteSize.X)
+    local leftScroll =
+        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList())
+        or (left and left:FindFirstChild("LeftScroll"))
+    if not (leftScroll and leftScroll:IsA("ScrollingFrame")) then return end
 
-        -- กันชน 2px เพื่อไม่ให้ชนขอบ/มุม container
-        local safeL = math.max(0, math.floor(math.min(DESIRED_SIDE, leftSpace  - 2)))
-        local safeR = math.max(0, math.floor(math.min(DESIRED_SIDE, rightSpace - 2)))
-
-        -- ปรับขนาด/ตำแหน่งกรอบ (ยื่นซ้าย/ขวาไม่เท่าก็ได้)
-        wrap.Size     = UDim2.new(1, safeL + safeR, 1, EXTRA_H)
-        wrap.Position = UDim2.new(0.5, (safeR - safeL), 0.5, 0)
+    -- เลเยอร์ overlay วาดกรอบ (นั่งบน LeftScroll แต่ไม่บังคลิก)
+    local overlay = leftScroll:FindFirstChild("NeonOverlayLayer_Full")
+    if not overlay then
+        overlay = Instance.new("Frame")
+        overlay.Name = "NeonOverlayLayer_Full"
+        overlay.Parent = leftScroll
+        overlay.BackgroundTransparency = 1
+        overlay.BorderSizePixel = 0
+        overlay.ClipsDescendants = false
+        overlay.ZIndex = (leftScroll.ZIndex or 1) + 50
+        overlay.Active = false
+        overlay.Size = UDim2.new(1,0,1,0)
+        overlay.Position = UDim2.new(0,0,0,0)
     end
 
-    local function ensureNeonBorder(btn)
-        if not (btn and btn:IsA("TextButton")) then return end
+    -- วาดกรอบให้ปุ่ม: ความกว้าง = ความกว้างของ Sidebar ทั้งหมด - margin
+    local function drawFor(btn: TextButton)
+        if not (btn and btn.Parent == leftScroll) then return end
 
-        local wrap = btn:FindFirstChild("NeonBorder")
-        if not wrap then
-            wrap = Instance.new("Frame")
-            wrap.Name = "NeonBorder"
-            wrap.Parent = btn
-            wrap.AnchorPoint = Vector2.new(0.5,0.5)
-            wrap.BackgroundTransparency = 1
-            wrap.BorderSizePixel = 0
-            wrap.ZIndex = math.max(0,(btn.ZIndex or 1)-1) -- วางหลังปุ่มเพื่อไม่บังการคลิก
-
-            local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0,RADIUS); corner.Parent = wrap
-            local stroke = Instance.new("UIStroke"); stroke.Color = GREEN; stroke.Thickness = THICK
-            stroke.Transparency = 0.10; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            stroke.LineJoinMode = Enum.LineJoinMode.Round; stroke.Parent = wrap
+        local name = "Border_"..btn.Name
+        local b = overlay:FindFirstChild(name)
+        if not b then
+            b = Instance.new("Frame")
+            b.Name = name
+            b.Parent = overlay
+            b.BackgroundTransparency = 1
+            b.BorderSizePixel = 0
+            b.Active = false
+            b.ZIndex = overlay.ZIndex
+            local c = Instance.new("UICorner", b); c.CornerRadius = UDim.new(0, RADIUS)
+            local s = Instance.new("UIStroke", b)
+            s.Color = GREEN; s.Thickness = THICK; s.Transparency = 0.1
+            s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            s.LineJoinMode = Enum.LineJoinMode.Round
         end
 
-        -- เซ็ตครั้งแรก + ผูกอัปเดตอัตโนมัติเมื่อเลย์เอาต์เปลี่ยน
-        local function refresh() fitBorderToSpace(btn, wrap) end
-        refresh()
-        if not wrap:FindFirstChild("_AutoFitHook") then
-            local hook = Instance.new("Folder"); hook.Name = "_AutoFitHook"; hook.Parent = wrap
-            btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
-            btn:GetPropertyChangedSignal("AbsolutePosition"):Connect(refresh)
-            if btn.Parent then
-                btn.Parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
-                btn.Parent:GetPropertyChangedSignal("AbsolutePosition"):Connect(refresh)
-            end
+        -- คำนวณ Y จากตำแหน่งจริงภายใน LeftScroll (ชดเชย CanvasPosition)
+        local absBtnPos  = btn.AbsolutePosition
+        local absLeftPos = leftScroll.AbsolutePosition
+        local canvas     = leftScroll.CanvasPosition
+        local relY = (absBtnPos.Y - absLeftPos.Y) + canvas.Y
+
+        local fullW = leftScroll.AbsoluteSize.X - (MARGIN_X * 2)
+        local x     = MARGIN_X
+        local y     = relY - math.floor(EXTRA_H/2)
+        local w     = math.max(0, fullW)
+        local h     = btn.AbsoluteSize.Y + EXTRA_H
+
+        b.Position = UDim2.fromOffset(x, y)
+        b.Size     = UDim2.fromOffset(w, h)
+        b.Visible  = btn.Visible
+    end
+
+    local function refreshAll()
+        for _,ch in ipairs(leftScroll:GetChildren()) do
+            if ch:IsA("TextButton") then drawFor(ch) end
         end
     end
 
-    local function styleAllButtons(container)
-        if not container then return end
-        for _,c in ipairs(container:GetChildren()) do
-            if c:IsA("TextButton") then ensureNeonBorder(c) end
-        end
-        if not container:FindFirstChild("_NeonBorderHook") then
-            local hook = Instance.new("Folder"); hook.Name = "_NeonBorderHook"; hook.Parent = container
-            container.ChildAdded:Connect(function(ch)
-                if ch:IsA("TextButton") then task.defer(function() ensureNeonBorder(ch) end) end
-            end)
+    -- วาดเริ่มต้น + ผูกอัปเดตอัตโนมัติ
+    refreshAll()
+    leftScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshAll)
+    leftScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshAll)
+    leftScroll.ChildAdded:Connect(function(ch) if ch:IsA("TextButton") then task.defer(function() drawFor(ch) end) end end)
+    for _,ch in ipairs(leftScroll:GetChildren()) do
+        if ch:IsA("TextButton") then
+            ch:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() drawFor(ch) end)
+            ch:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() drawFor(ch) end)
+            ch:GetPropertyChangedSignal("Visible"):Connect(function() drawFor(ch) end)
         end
     end
-
-    -- ใช้กับฝั่งซ้ายก่อน (อีกฝั่งค่อยทำแพตช์แยก)
-    local leftScroll = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or (left and left:FindFirstChild("LeftScroll"))
-    if leftScroll then styleAllButtons(leftScroll) end
 end
---====================== END LEFT AUTO-FIT BORDER =======================
+--==================== END LEFT FULL-SIDEBAR BORDER =====================
