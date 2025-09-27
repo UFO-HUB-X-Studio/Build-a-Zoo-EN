@@ -122,6 +122,81 @@ make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
 local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
     BackgroundColor3=D_GREY},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
+----------------------------------------------------------------
+-- DROP-IN: ทำให้พื้นที่ content เลื่อนขึ้น/ลงได้ (ไม่แตะ UI เดิม)
+-- - เอาของเดิมใน content (ปุ่ม/แถวต่าง ๆ) ย้ายเข้า ScrollingFrame ให้เอง
+-- - เปิดมาจะอยู่ตำแหน่งบนสุดเสมอ
+-- - ใช้ AutomaticCanvasSize:Y กันแคนวาสเพี้ยน
+----------------------------------------------------------------
+do
+    local CONTENT = content  -- << ใช้กรอบขวาเดิมของคุณ
+    if not CONTENT or not CONTENT:IsA("Frame") then
+        warn("[UFOX] content ไม่พบ หรือไม่ใช่ Frame"); return
+    end
+
+    -- ลบของเก่าถ้ามี
+    local old = CONTENT:FindFirstChild("UFOX_Scroll")
+    if old then old:Destroy() end
+
+    -- สร้างสกอร์ล (กินพื้นที่ในกรอบขวา – เว้นขอบ 10px สวย ๆ)
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "UFOX_Scroll"
+    scroll.Parent = CONTENT
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ClipsDescendants = true
+    scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    scroll.ScrollBarThickness = 6
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.CanvasSize = UDim2.new(0,0,0,0)
+    scroll.Position = UDim2.new(0,10,0,10)
+    scroll.Size     = UDim2.new(1,-20,1,-20) -- เว้นซ้ายขวาบนล่าง 10px
+
+    -- จัดเรียงแนวตั้ง
+    local list = Instance.new("UIListLayout")
+    list.Parent = scroll
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    list.VerticalAlignment   = Enum.VerticalAlignment.Top
+    list.Padding = UDim.new(0,10)
+
+    -- ย้ายลูกเดิม (ปุ่ม/แถว) ใน content เข้าไปใน scroll ให้อัตโนมัติ
+    -- *ยกเว้น UICorner/UIStroke/UIGradient/ScrollingFrame เอง
+    for _,child in ipairs(CONTENT:GetChildren()) do
+        if child ~= scroll and child:IsA("GuiObject")
+           and (child.ClassName ~= "UIStroke"
+             and child.ClassName ~= "UICorner"
+             and child.ClassName ~= "UIGradient") then
+            child.Parent = scroll
+            -- แปลงขนาด/ตำแหน่งให้เป็น “แถวยาวสวย ๆ” อัตโนมัติถ้าเป็น Frame/Button
+            if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("ImageButton") then
+                child.AnchorPoint = Vector2.new(0.5,0)
+                child.Position    = UDim2.new(0.5,0,0,0)
+                child.Size        = UDim2.new(1,-20,0,54)  -- กว้างเต็ม (เว้นขอบ) สูง 54
+            end
+        end
+    end
+
+    -- เปิดมาอยู่บนสุดเสมอ (กันอาการค้างที่ล่าง)
+    local function resetTop()
+        scroll.CanvasPosition = Vector2.new(0,0)
+    end
+    resetTop()
+    scroll:GetPropertyChangedSignal("Visible"):Connect(function()
+        if scroll.Visible then resetTop() end
+    end)
+    -- เวลา show/hide หน้าหลัก หรือเปิด GUI ครั้งแรก
+    local rootGui = CONTENT:FindFirstAncestorOfClass("ScreenGui")
+    if rootGui then
+        rootGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+            if rootGui.Enabled then resetTop() end
+        end)
+    end
+    -- กันเคสย้ายพาเรนต์/โหลดใหม่
+    scroll.AncestryChanged:Connect(function()
+        task.defer(resetTop)
+    end)
+end
 
 local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
     BackgroundTransparency=1, Visible=true}, {})
