@@ -323,71 +323,51 @@ btnMini:GetPropertyChangedSignal("Text"):Connect(function()
     setCollapsedUI(btnMini.Text == "▢")
 end)
 --========================================================
--- [PATCH] Sidebar: add "หน้าหลัก" button -> show pgHome in Content
--- *ไม่ลบของเดิม* — ตรวจของเก่า, สร้างเฉพาะที่ยังไม่มี, แล้วเชื่อมปุ่ม
+-- UFO HUB X — System: Sidebar "🏠 Home" + Page Switch
 --========================================================
 
--- Ensure scrolling containers exist (จากแพตช์ก่อนหน้า ถ้ามีอยู่แล้วจะใช้ตัวเดิม)
-local leftScroll = left:FindFirstChild("LeftScroll")
-if not leftScroll then
-    leftScroll = make("ScrollingFrame", {
-        Parent = left, Name = "LeftScroll",
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Size = UDim2.new(1,-10, 1,-10), Position = UDim2.new(0,5,0,5),
-        ScrollBarThickness = 4, ScrollBarImageTransparency = 0.15, ScrollBarImageColor3 = ACCENT,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0,0,0,0), ClipsDescendants = true
-    }, {
-        make("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,6), PaddingRight=UDim.new(0,6), PaddingBottom=UDim.new(0,6)}),
-        make("UIListLayout", {FillDirection=Enum.FillDirection.Vertical, HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Top, Padding=UDim.new(0,8), SortOrder=Enum.SortOrder.LayoutOrder})
-    })
+-- สมมติว่ามี leftScroll (ScrollingFrame) และ contentScroll (ScrollingFrame) อยู่แล้ว
+-- และมี Frame ชื่อ pgHome สำหรับหน้าหลัก
+
+-- ลบปุ่ม Home เก่าออก (กันซ้อน)
+for _,c in ipairs(leftScroll:GetChildren()) do
+    if c:IsA("TextButton") and (c.Name=="Home" or c.Text=="หน้าหลัก") then
+        c:Destroy()
+    end
 end
 
-local contentScroll = content:FindFirstChild("ContentScroll")
-if not contentScroll then
-    contentScroll = make("ScrollingFrame", {
-        Parent = content, Name = "ContentScroll",
-        BackgroundTransparency = 1, BorderSizePixel = 0,
-        Size = UDim2.new(1,-10, 1,-10), Position = UDim2.new(0,5,0,5),
-        ScrollBarThickness = 5, ScrollBarImageTransparency = 0.15, ScrollBarImageColor3 = ACCENT,
-        AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0,0,0,0), ClipsDescendants = true
-    }, {
-        make("UIPadding", {PaddingTop=UDim.new(0,10), PaddingLeft=UDim.new(0,10), PaddingRight=UDim.new(0,10), PaddingBottom=UDim.new(0,10)}),
-        make("UIListLayout", {FillDirection=Enum.FillDirection.Vertical, HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            VerticalAlignment=Enum.VerticalAlignment.Top, Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
-    })
-end
+-- สร้างปุ่ม Sidebar: 🏠 Home
+local btnHome = Instance.new("TextButton")
+btnHome.Name = "Home"
+btnHome.Parent = leftScroll
+btnHome.Size = UDim2.new(1,0,0,36)
+btnHome.AutoButtonColor = true
+btnHome.BackgroundColor3 = SUB
+btnHome.Text = "🏠 Home"
+btnHome.TextColor3 = Color3.fromRGB(255,255,255)
+btnHome.Font = Enum.Font.GothamBold
+btnHome.TextSize = 16
+btnHome.TextXAlignment = Enum.TextXAlignment.Left
 
--- ย้ายหน้า pgHome ให้มาอยู่ในพื้นที่เลื่อนของ Content (ถ้ายังไม่ได้ย้าย)
-if pgHome.Parent ~= contentScroll then
-    pgHome.Parent = contentScroll
-end
-pgHome.Visible = true
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0,8)
+corner.Parent = btnHome
 
--- ฟังก์ชันสร้างปุ่ม Sidebar (ถ้ายังไม่มีจากแพตช์ก่อน)
-local function _AddSidebarItem(text)
-    local b = make("TextButton", {
-        Parent = leftScroll,
-        Size = UDim2.new(1,0, 0,36),
-        AutoButtonColor = true,
-        BackgroundColor3 = SUB,
-        Text = text,
-        TextColor3 = FG,
-        Font = Enum.Font.GothamBold,
-        TextSize = 16
-    }, {
-        make("UICorner", {CornerRadius = UDim.new(0,8)}),
-        make("UIStroke", {Color = ACCENT, Transparency = 0.85})
-    })
-    return b
-end
+local stroke = Instance.new("UIStroke")
+stroke.Color = ACCENT
+stroke.Transparency = 0.85
+stroke.Parent = btnHome
 
--- ระบบเลือก/ไฮไลต์ปุ่มเมนู
+local pad = Instance.new("UIPadding")
+pad.PaddingLeft = UDim.new(0,10)
+pad.Parent = btnHome
+
+-- ระบบเลือกปุ่ม Sidebar
 local function setSidebarSelected(btn)
     for _,c in ipairs(leftScroll:GetChildren()) do
         if c:IsA("TextButton") then
             c.BackgroundColor3 = SUB
-            c.TextColor3 = FG
+            c.TextColor3 = Color3.fromRGB(255,255,255)
         end
     end
     if btn then
@@ -396,10 +376,8 @@ local function setSidebarSelected(btn)
     end
 end
 
--- บันทึกหน้า (สามารถเพิ่มหน้าอื่นในอนาคตได้)
-local Pages = {
-    ["หน้าหลัก"] = pgHome
-}
+-- ระบบจัดการ Pages
+local Pages = { ["Home"] = pgHome }
 
 local function showPage(name)
     for n,frame in pairs(Pages) do
@@ -407,29 +385,18 @@ local function showPage(name)
             frame.Visible = (n == name)
         end
     end
-    -- เลื่อนขึ้นบนสุดทุกครั้งที่เปิดหน้า
-    contentScroll.CanvasPosition = Vector2.new(0,0)
-end
-
--- สร้างปุ่ม "หน้าหลัก" เฉพาะถ้ายังไม่มี
-local btnHome = nil
-for _,c in ipairs(leftScroll:GetChildren()) do
-    if c:IsA("TextButton") and (c.Text == "หน้าหลัก" or c.Name == "หน้าหลัก") then
-        btnHome = c
-        break
+    -- เวลาเปลี่ยนหน้า รีเซ็ต Scroll ขึ้นบนสุด
+    if contentScroll then
+        contentScroll.CanvasPosition = Vector2.new(0,0)
     end
 end
-if not btnHome then
-    btnHome = _AddSidebarItem("หน้าหลัก")
-    btnHome.Name = "หน้าหลัก"
-end
 
--- ผูกคลิก -> เปิดหน้า pgHome และไฮไลต์ปุ่ม
+-- Event: คลิกปุ่ม Home
 btnHome.MouseButton1Click:Connect(function()
-    showPage("หน้าหลัก")
+    showPage("Home")
     setSidebarSelected(btnHome)
 end)
 
--- เปิดแบบดีฟอลต์เป็นหน้าหลัก + ไฮไลต์
-showPage("หน้าหลัก")
+-- เปิดเริ่มต้นเป็นหน้าหลัก
+showPage("Home")
 setSidebarSelected(btnHome)
