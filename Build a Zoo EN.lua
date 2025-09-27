@@ -204,6 +204,135 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
+--[[
+UFO HUB X - Scroll Patch (safe wrap)
+- เพิ่มสกรอล์ขึ้น/ลงให้ "ทั้งสองฝั่ง" โดยไม่แก้พฤติกรรมปุ่มเดิม
+- หลักการ: สร้าง ScrollingFrame ภายในเฟรมเดิม แล้วห่อ children เดิมทั้งหมดไว้ใน Content
+- รองรับเมาส์ล้อ/ทัชลาก อัตโนมัติ (แบบเดียวกับ Kavo UI)
+]]
+
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+local gui = lp:WaitForChild("PlayerGui")
+
+--------------------------------------------------------------------
+-- 🔧 ตั้งชื่อเฟรมด้านล่างให้ตรงกับของคุณ
+-- ตัวอย่าง: gui.UFO_HUB_X.Main.LeftPanel  /  gui.UFO_HUB_X.Main.RightPanel
+--------------------------------------------------------------------
+local LeftPanel  = gui:FindFirstChild("UFO_HUB_X", true) and gui.UFO_HUB_X:FindFirstChild("Main", true) and gui.UFO_HUB_X.Main:FindFirstChild("LeftPanel")
+local RightPanel = gui:FindFirstChild("UFO_HUB_X", true) and gui.UFO_HUB_X:FindFirstChild("Main", true) and gui.UFO_HUB_X.Main:FindFirstChild("RightPanel")
+
+-- ถ้าโครงชื่อของคุณไม่ตรง ให้แก้ 2 บรรทัดบนนี้ให้ชี้ไปยังเฟรมจริงของฝั่งซ้าย/ขวา
+
+--------------------------------------------------------------------
+-- 🧠 ฟังก์ชันห่อให้เลื่อนขึ้น/ลง (ไม่แตะ properties ของปุ่ม)
+--------------------------------------------------------------------
+local function makeScrollable(panel: Instance, opts)
+	if not panel or not panel:IsA("Frame") then return end
+	opts = opts or {}
+	local padding = tonumber(opts.padding) or 8          -- ระยะขอบด้านใน
+	local spacing = tonumber(opts.spacing) or 8          -- ระยะห่างระหว่างปุ่ม
+	local cornerRadius = opts.cornerRadius               -- ถ้ามี
+	local showScrollbar = opts.showScrollbar             -- true/false
+
+	-- ถ้ามีสกรอล์อยู่แล้ว ให้ข้าม
+	if panel:FindFirstChild("_Scroll") then return end
+
+	-- เก็บขนาดเดิม
+	local panelSize = panel.Size
+
+	-- สร้าง ScrollingFrame ภายใน panel
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Name = "_Scroll"
+	scroll.Parent = panel
+	scroll.AnchorPoint = Vector2.new(0.5, 0.5)
+	scroll.Position = UDim2.fromScale(0.5, 0.5)
+	scroll.Size = UDim2.fromScale(1, 1)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ClipsDescendants = true
+	scroll.ScrollBarThickness = 6
+	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y -- ให้คำนวณเองตาม content
+	scroll.CanvasSize = UDim2.new(0,0,0,0)
+	-- ซ่อน/แสดงแถบสกรอล์ตามต้องการ
+	if showScrollbar == false then
+		scroll.ScrollBarImageTransparency = 1
+	else
+		scroll.ScrollBarImageTransparency = 0.2
+	end
+
+	-- สร้าง Content ไว้ห่อ children เดิม
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.Parent = scroll
+	content.BackgroundTransparency = 1
+	content.Size = UDim2.new(1, -padding*2, 0, 0)
+	content.Position = UDim2.fromOffset(padding, padding)
+
+	-- padding ด้านใน
+	local pad = Instance.new("UIPadding")
+	pad.Parent = content
+	pad.PaddingTop = UDim.new(0, 0)
+	pad.PaddingBottom = UDim.new(0, padding)
+	pad.PaddingLeft = UDim.new(0, 0)
+	pad.PaddingRight = UDim.new(0, 0)
+
+	-- เรียงปุ่มแนวตั้ง
+	local list = Instance.new("UIListLayout")
+	list.Parent = content
+	list.FillDirection = Enum.FillDirection.Vertical
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, spacing)
+
+	-- (เลือกได้) มุมโค้งสำหรับปุ่มที่เพิ่มมาใหม่ในอนาคต
+	if cornerRadius then
+		for _,child in ipairs(panel:GetChildren()) do
+			if child:IsA("TextButton") or child:IsA("ImageButton") or child:IsA("Frame") then
+				if not child:FindFirstChildOfClass("UICorner") then
+					local cr = Instance.new("UICorner")
+					cr.CornerRadius = UDim.new(0, cornerRadius)
+					cr.Parent = child
+				end
+			end
+		end
+	end
+
+	-- ย้ายเฉพาะ "ปุ่ม/รายการ" เดิมเข้าไปใน content
+	for _,child in ipairs(panel:GetChildren()) do
+		if child ~= scroll then
+			-- ไม่ยุ่งกับ UIStroke/UIImageLabel ที่เป็นพื้นหลังกรอบ panel เอง
+			if child:IsA("TextButton") or child:IsA("ImageButton") or child:IsA("Frame") then
+				-- ยกเว้นแผงหัวเรื่องที่คุณอาจตั้งชื่อว่า "Header","Topbar"
+				local n = string.lower(child.Name)
+				if not (n == "header" or n == "topbar") then
+					child.Parent = content
+				end
+			end
+		end
+	end
+
+	-- อัปเดต Canvas ให้พอดีคอนเทนต์
+	local function updateCanvas()
+		local abs = list.AbsoluteContentSize
+		content.Size = UDim2.new(1, -padding*2, 0, abs.Y)
+		scroll.CanvasSize = UDim2.new(0, 0, 0, abs.Y + padding*2)
+	end
+	list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+	updateCanvas()
+
+	-- ปรับแต่งสัมผัสให้ลื่น (ค่าเริ่มต้นของ ScrollingFrame ใช้งานได้ทั้งเมาส์และทัชอยู่แล้ว)
+	scroll.ScrollBarThickness = showScrollbar == false and 6 or 8
+	-- รักษาขนาด panel เดิม
+	panel.Size = panelSize
+end
+
+--------------------------------------------------------------------
+-- 🚀 เรียกใช้ (แก้ชื่อให้ตรงกับของคุณด้านบน)
+--------------------------------------------------------------------
+makeScrollable(LeftPanel,  { padding = 10, spacing = 8, showScrollbar = false })
+makeScrollable(RightPanel, { padding = 12, spacing = 10, showScrollbar = false })
 -- ===== Force order: Home(1) -> Shop(2) -> Fishing(3) =====
 local function forceLeftOrder()
     if not left then return end
