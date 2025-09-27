@@ -204,316 +204,236 @@ UIS.InputBegan:Connect(function(i,gp)
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
 end)
-
-
-
 --========================================================
--- ADD-ONLY: Scroll System (Green) for "UI อันใหญ่"
--- - ไม่แก้ / ไม่ลบของเดิม
--- - เพิ่ม ScrollingFrame สำหรับฝั่งซ้าย (left) และคอนเทนต์ (pgHome)
--- - แถบเลื่อนสีเขียวตามธีม (ACCENT)
--- - ปรับ CanvasSize อัตโนมัติ
--- - รองรับเมาส์/ทัช/เกมแพด
+-- Kavo-Compatible API -> Render ด้วย UFO HUB X UI (ของคุณ)
+-- ใช้สคริปต์ที่เขียนแบบ Kavo ได้ แต่หน้าตา/ธีมเป็นของเรา
+-- รองรับ: CreateLib, NewTab, NewSection, NewButton, NewToggle, Label, ToggleUI
 --========================================================
 do
-    -- ถ้ามีของเดิมชื่อนี้พร้อมชนิดนี้แล้ว จะคืนของเดิม (ไม่สร้างซ้ำ)
-    local function ensureChild(parent, name, className)
+    local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local WHITE = Color3.fromRGB(255,255,255)
+    local TS    = game:GetService("TweenService")
+
+    -- 0) สร้าง ScrollingFrames ซ้าย/ขวา ถ้ายังไม่มี (ขนาดพอดีกับกรอบ)
+    local function ensureScroll(parent: Instance, name: string)
         if not parent then return nil end
-        local ex = parent:FindFirstChild(name)
-        if ex and ex.ClassName == className then return ex end
-        return nil
-    end
-
-    -- สร้าง/การันตี ScrollingFrame + Layout + Padding โดย "เพิ่มอย่างเดียว"
-    local function ensureScroll(container, name, padding)
-        if not container then return nil end
-
-        local sc = ensureChild(container, name, "ScrollingFrame")
-        if not sc then
-            sc = make("ScrollingFrame", {
-                Name = name,
-                Parent = container,
-                BackgroundTransparency = 1, -- ไม่ทับธีม
-                BorderSizePixel = 0,
-                ScrollingDirection = Enum.ScrollingDirection.Y,
-                CanvasSize = UDim2.fromOffset(0, 0),
-                ScrollBarThickness = 6,
-                ScrollBarImageTransparency = 0,
-                ScrollBarImageColor3 = ACCENT, -- เขียว
-                ClipsDescendants = true,
-                AutomaticCanvasSize = Enum.AutomaticSize.None, -- คุมเอง
-                Active = true,
-                Selectable = true,
-                ScrollingEnabled = true,
-            }, {
-                make("UIPadding", {
-                    PaddingTop = UDim.new(0, padding),
-                    PaddingBottom = UDim.new(0, padding),
-                    PaddingLeft = UDim.new(0, padding),
-                    PaddingRight = UDim.new(0, padding)
-                }),
-                make("UIListLayout", {
-                    Name = "ListLayout",
-                    FillDirection = Enum.FillDirection.Vertical,
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    Padding = UDim.new(0, 8)
-                })
-            })
-        else
-            -- ถ้าเจอของเดิม ก็เพียง "อัปเดตค่าที่จำเป็น" ให้ได้สี/พฤติกรรมตามต้องการ
+        local sc = parent:FindFirstChild(name)
+        if not (sc and sc:IsA("ScrollingFrame")) then
+            sc = Instance.new("ScrollingFrame")
+            sc.Name = name; sc.Parent = parent
+            sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0
+            sc.ClipsDescendants = true
             sc.ScrollingDirection = Enum.ScrollingDirection.Y
             sc.ScrollBarThickness = 6
-            sc.ScrollBarImageTransparency = 0
-            sc.ScrollBarImageColor3 = ACCENT
-            sc.ClipsDescendants = true
-            sc.AutomaticCanvasSize = Enum.AutomaticSize.None
-            sc.Active, sc.Selectable, sc.ScrollingEnabled = true, true, true
-
-            if not sc:FindFirstChild("ListLayout") then
-                make("UIListLayout", {
-                    Name = "ListLayout",
-                    FillDirection = Enum.FillDirection.Vertical,
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    Padding = UDim.new(0, 8)
-                }).Parent = sc
-            end
-            if not sc:FindFirstChildOfClass("UIPadding") then
-                make("UIPadding", {
-                    PaddingTop = UDim.new(0, padding),
-                    PaddingBottom = UDim.new(0, padding),
-                    PaddingLeft = UDim.new(0, padding),
-                    PaddingRight = UDim.new(0, padding)
-                }).Parent = sc
-            end
-        end
-
-        -- กินพื้นที่เต็มของ container โดยเหลือขอบเท่ากับ padding
-        local function resizeToFit()
-            sc.Size = UDim2.new(1, -padding*2, 1, -padding*2)
-            sc.Position = UDim2.new(0, padding, 0, padding)
-        end
-        resizeToFit()
-        if container:IsA("GuiObject") then
-            container:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeToFit)
-        end
-
-        -- อัปเดต CanvasSize ตามคอนเทนต์จริง
-        local layout = sc:FindFirstChild("ListLayout")
-        if layout then
-            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                sc.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + padding*2)
+            sc.ScrollBarImageColor3 = GREEN
+            local list = Instance.new("UIListLayout", sc)
+            list.Padding = UDim.new(0,8)
+            list.FillDirection = Enum.FillDirection.Vertical
+            list.SortOrder = Enum.SortOrder.LayoutOrder
+            list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                sc.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
             end)
-            -- เรียกครั้งแรก
-            sc.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + padding*2)
         end
-
-        -- รองรับโฟกัส (เกมแพด/คีย์บอร์ด)
-        sc.SelectionGroup = true
-
+        sc.Size     = UDim2.new(1, -20, 1, -20)
+        sc.Position = UDim2.new(0, 10, 0, 10)
         return sc
     end
+    local LeftScroll    = ensureScroll(left,   "LeftScroll")
+    local ContentScroll = ensureScroll(pgHome, "ContentScroll")
 
-    -- ฝั่งซ้าย (left)
-    local leftScroll = ensureScroll(left, "LeftScroll", 10)
+    -- 1) องค์ประกอบเล็ก ๆ ใช้ซ้ำ -------------------------
+    local function makeStroke(p, th) local s=Instance.new("UIStroke", p); s.Color=GREEN; s.Thickness=th or 2; s.Transparency=0.1; s.ApplyStrokeMode=Enum.ApplyStrokeMode.Border; return s end
+    local function makeCorner(p, r) local c=Instance.new("UICorner", p); c.CornerRadius=UDim.new(0,r or 12); return c end
 
-    -- ฝั่งคอนเทนต์: ใช้พื้นที่หน้า pgHome (ไม่ทับ frame 'content')
-    local contentScroll = ensureScroll(pgHome, "ContentScroll", 10)
-
-    -- Helper: ให้ผู้ใช้เรียกตำแหน่งที่จะวางไอเท็มได้ทันที (เพิ่มเท่านั้น ไม่ยุ่งของเดิม)
-    _G.UFOHubX_GetLeftList = function()
-        return (left and left:FindFirstChild("LeftScroll")) or leftScroll
-    end
-    _G.UFOHubX_GetContentArea = function()
-        return (pgHome and pgHome:FindFirstChild("ContentScroll")) or contentScroll
-    end
-end
---========================
--- END ADD-ONLY: Scroll System
---========================
---========================================================
--- PATCH: 👽Home button invisible (only emoji + text visible)
---========================================================
-do
-    local leftScroll = (left and left:FindFirstChild("LeftScroll"))
-    if leftScroll then
-        local btn = leftScroll:FindFirstChild("Btn_Home")
-        if not (btn and btn:IsA("TextButton")) then
-            btn = Instance.new("TextButton")
-            btn.Name = "Btn_Home"
-            btn.Parent = leftScroll
-        end
-
-        -- Style: invisible button
-        btn.Size = UDim2.new(1, 0, 0, 40)
-        btn.BackgroundTransparency = 1     -- ล่องหน
-        btn.BorderSizePixel = 0
-        btn.AutoButtonColor = false        -- ไม่มีเอฟเฟกต์ hover
-        btn.Text = "👽  Home"               -- มีแค่ emoji + text
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 18
-        btn.TextColor3 = Color3.new(1,1,1)
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.LayoutOrder = 1
-
-        -- Padding ให้ข้อความสวย
-        local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
-        pad.PaddingLeft = UDim.new(0, 8)
-    end
-end
---========================================================
---========================================================
--- LEFT ONLY: Neon border with fixed extension (manual measure)
--- กรอบยาวกว่าปุ่มข้างละ 10px ตายตัว
---========================================================
-do
-    local GREEN    = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
-    local EXTEND_X = 10   -- ยื่นออกซ้าย/ขวา ข้างละ 10px
-    local EXTEND_Y =  6   -- สูงกว่าเล็กน้อย
-    local RADIUS   = 12
-    local THICK    = 2
-
-    local leftScroll =
-        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList())
-        or (left and left:FindFirstChild("LeftScroll"))
-    if not (leftScroll and leftScroll:IsA("ScrollingFrame")) then return end
-
-    local function ensureFixedBorder(btn)
-        if not (btn and btn:IsA("TextButton")) then return end
-        local wrap = btn:FindFirstChild("FixedNeon")
-        if not wrap then
-            wrap = Instance.new("Frame")
-            wrap.Name = "FixedNeon"
-            wrap.Parent = btn
-            wrap.AnchorPoint = Vector2.new(0.5,0.5)
-            wrap.BackgroundTransparency = 1
-            wrap.BorderSizePixel = 0
-            wrap.ZIndex = math.max(0,(btn.ZIndex or 1)-1)
-
-            local c = Instance.new("UICorner", wrap); c.CornerRadius = UDim.new(0,RADIUS)
-            local s = Instance.new("UIStroke", wrap)
-            s.Color = GREEN; s.Thickness = THICK; s.Transparency = 0.1
-            s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            s.LineJoinMode = Enum.LineJoinMode.Round
-        end
-
-        wrap.Size     = UDim2.new(1, EXTEND_X*2, 1, EXTEND_Y)
-        wrap.Position = UDim2.new(0.5, 0, 0.5, 0)
+    local function sidebarButton(text: string)
+        local b = Instance.new("TextButton")
+        b.Name = "Btn_"..text; b.Parent = LeftScroll
+        b.Size = UDim2.new(1,0,0,44)
+        b.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        b.TextColor3 = WHITE; b.Font=Enum.Font.GothamBold; b.TextSize=18
+        b.TextXAlignment = Enum.TextXAlignment.Left; b.AutoButtonColor=false
+        b.Text = text
+        makeCorner(b,12); makeStroke(b,2)
+        local pad = Instance.new("UIPadding", b); pad.PaddingLeft=UDim.new(0,12); pad.PaddingRight=UDim.new(0,10)
+        -- press/hover feel
+        b.MouseEnter:Connect(function() TS:Create(b.UIStroke, TweenInfo.new(0.1), {Transparency=0}):Play() end)
+        b.MouseLeave:Connect(function() TS:Create(b.UIStroke, TweenInfo.new(0.1), {Transparency=0.1}):Play(); TS:Create(b, TweenInfo.new(0.08), {BackgroundTransparency=0}):Play() end)
+        b.MouseButton1Down:Connect(function() TS:Create(b, TweenInfo.new(0.08), {BackgroundTransparency=0.15}):Play() end)
+        b.MouseButton1Up:Connect(function() TS:Create(b, TweenInfo.new(0.08), {BackgroundTransparency=0}):Play() end)
+        return b
     end
 
-    local function styleAllButtons(container)
-        for _,ch in ipairs(container:GetChildren()) do
-            if ch:IsA("TextButton") then ensureFixedBorder(ch) end
-        end
-        container.ChildAdded:Connect(function(ch)
-            if ch:IsA("TextButton") then task.defer(function() ensureFixedBorder(ch) end) end
+    local function sectionBox(titleText: string)
+        local box = Instance.new("Frame")
+        box.Name="Section_"..titleText; box.Parent=ContentScroll
+        box.BackgroundColor3 = Color3.fromRGB(18,18,18); box.BorderSizePixel=0
+        box.Size = UDim2.new(1,0,0,72) -- สูงเริ่มต้น (จะขยายตามเนื้อหาภายหลัง)
+        makeCorner(box,10); local s=makeStroke(box,2); s.Transparency=0.08
+
+        local header = Instance.new("TextLabel", box)
+        header.Name="Header"; header.BackgroundTransparency=1
+        header.Position=UDim2.new(0,12,0,8); header.Size=UDim2.new(1,-24,0,24)
+        header.Font=Enum.Font.GothamBold; header.TextSize=20; header.TextXAlignment=Enum.TextXAlignment.Left
+        header.TextColor3 = WHITE; header.Text = titleText
+
+        local line = Instance.new("Frame", box)
+        line.BackgroundColor3=GREEN; line.BorderSizePixel=0
+        line.Position=UDim2.new(0,12,0,36); line.Size=UDim2.new(1,-24,0,2)
+        local grad=Instance.new("UIGradient", line)
+        grad.Transparency = NumberSequence.new{
+            NumberSequenceKeypoint.new(0,0.55), NumberSequenceKeypoint.new(0.5,0.0), NumberSequenceKeypoint.new(1,0.55)
+        }
+
+        local body = Instance.new("Frame", box)
+        body.Name="Body"; body.BackgroundTransparency=1
+        body.Position=UDim2.new(0,12,0,44); body.Size=UDim2.new(1,-24,0,0)
+
+        local inner = Instance.new("UIListLayout", body)
+        inner.Padding=UDim.new(0,8); inner.FillDirection=Enum.FillDirection.Vertical; inner.SortOrder=Enum.SortOrder.LayoutOrder
+        inner:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            body.Size = UDim2.new(1,-24,0, inner.AbsoluteContentSize.Y)
+            box.Size  = UDim2.new(1, 0, 0, 44 + 8 + inner.AbsoluteContentSize.Y + 12)
         end)
+
+        return box, body
     end
 
-    styleAllButtons(leftScroll)
+    -- 2) Kavo-Compatible Interface ---------------------------------------
+    local Library = {}
+    function Library:ToggleUI()
+        mainGui.Enabled = not mainGui.Enabled
+    end
+
+    function Library.CreateLib(windowTitle, themeTableOrName)
+        -- ปรับชื่อบนหัว (ใช้โลโก้/สไตล์เดิมของคุณ)
+        -- (ถ้าจะโชว์ชื่อแท็บบน top bar ให้เพิ่มเองได้)
+        local win = {}  -- window object (Kavo style)
+        local tabs = {}
+
+        function win:NewTab(tabName)
+            -- map: Tab = ปุ่มซ้าย + กลุ่ม Section ขวา (ซ่อนได้/โชว์เมื่อเลือก)
+            local tab = {name=tabName, sections={}, _leftBtn=nil, _container=nil}
+            tab._leftBtn = sidebarButton(tabName)
+            tab._container = Instance.new("Frame")
+            tab._container.Name = "Tab_"..tabName
+            tab._container.Parent = ContentScroll
+            tab._container.BackgroundTransparency=1
+            tab._container.Size = UDim2.new(1,0,0,0)
+
+            local list = Instance.new("UIListLayout", tab._container)
+            list.Padding = UDim.new(0,8); list.FillDirection=Enum.FillDirection.Vertical; list.SortOrder=Enum.SortOrder.LayoutOrder
+            list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                tab._container.Size = UDim2.new(1,0,0,list.AbsoluteContentSize.Y)
+            end)
+
+            -- ซ่อน/โชว์เมื่อคลิกปุ่มซ้าย
+            local function showOnlyThis()
+                for _,t in pairs(tabs) do
+                    if t._container then t._container.Visible = (t==tab) end
+                    if t._leftBtn then t._leftBtn.UIStroke.Transparency = (t==tab) and 0 or 0.1 end
+                end
+                -- เลื่อนขวาไปช่วงบนของแท็บนี้
+                task.defer(function()
+                    local y=0
+                    for _,c in ipairs(ContentScroll:GetChildren()) do
+                        if c:IsA("Frame") then
+                            if c==tab._container then break end
+                            y = y + c.AbsoluteSize.Y + 8
+                        end
+                    end
+                    ContentScroll.CanvasPosition = Vector2.new(0,y)
+                end)
+            end
+            tab._leftBtn.MouseButton1Click:Connect(showOnlyThis)
+
+            -- Section API
+            function tab:NewSection(sectionName)
+                local sec, body = sectionBox(sectionName)
+                sec.Parent = tab._container
+
+                local sectionApi = {}
+
+                function sectionApi:NewLabel(text)
+                    local l = Instance.new("TextLabel")
+                    l.Name="Label"; l.Parent = body
+                    l.BackgroundTransparency=1; l.Size=UDim2.new(1,0,0,22)
+                    l.Font=Enum.Font.Gotham; l.TextSize=16
+                    l.TextXAlignment=Enum.TextXAlignment.Left
+                    l.TextColor3 = WHITE; l.Text = text or ""
+                    return {
+                        UpdateLabel = function(_, newText) l.Text = newText end
+                    }
+                end
+
+                function sectionApi:NewButton(text, desc, callback)
+                    local b = Instance.new("TextButton")
+                    b.Name="Btn"; b.Parent = body
+                    b.Size=UDim2.new(1,0,0,36)
+                    b.BackgroundColor3=Color3.fromRGB(0,0,0)
+                    b.TextColor3=WHITE; b.Font=Enum.Font.GothamBold; b.TextSize=16
+                    b.Text = text or "Button"; b.AutoButtonColor=false
+                    makeCorner(b,10); makeStroke(b,2)
+                    b.MouseButton1Click:Connect(function()
+                        TS:Create(b, TweenInfo.new(0.06), {BackgroundTransparency=0.15}):Play()
+                        task.delay(0.08, function() TS:Create(b, TweenInfo.new(0.06), {BackgroundTransparency=0}):Play() end)
+                        if callback then pcall(callback) end
+                    end)
+                    return {
+                        UpdateButton = function(_, t) b.Text = t end
+                    }
+                end
+
+                function sectionApi:NewToggle(text, desc, default, callback)
+                    local row = Instance.new("Frame"); row.Parent = body
+                    row.BackgroundTransparency=1; row.Size=UDim2.new(1,0,0,36)
+                    local lbl = Instance.new("TextLabel", row)
+                    lbl.BackgroundTransparency=1; lbl.Size=UDim2.new(1,-60,1,0)
+                    lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Font=Enum.Font.GothamBold
+                    lbl.TextSize=16; lbl.TextColor3=WHITE; lbl.Text = text or "Toggle"
+                    local sw = Instance.new("TextButton", row)
+                    sw.Name="Switch"; sw.Size=UDim2.new(0,46,0,24); sw.Position=UDim2.new(1,-46,0.5,-12)
+                    sw.BackgroundColor3=Color3.fromRGB(30,30,30); sw.AutoButtonColor=false; sw.Text=""
+                    makeCorner(sw,12); makeStroke(sw,2)
+                    local knob = Instance.new("Frame", sw)
+                    knob.Size=UDim2.new(0,18,0,18); knob.Position=UDim2.new(0,4,0.5,-9)
+                    knob.BackgroundColor3=WHITE; knob.BorderSizePixel=0; makeCorner(knob,9)
+
+                    local state = not not default
+                    local function apply()
+                        sw.UIStroke.Color = state and GREEN or Color3.fromRGB(90,90,90)
+                        sw.BackgroundColor3 = state and Color3.fromRGB(20,35,25) or Color3.fromRGB(30,30,30)
+                        TS:Create(knob, TweenInfo.new(0.12), {Position = state and UDim2.new(1,-22,0.5,-9) or UDim2.new(0,4,0.5,-9)}):Play()
+                    end
+                    apply()
+                    sw.MouseButton1Click:Connect(function()
+                        state = not state; apply(); if callback then pcall(callback, state) end
+                    end)
+                    return {
+                        UpdateToggle = function(_, s) state = not not s; apply(); if callback then pcall(callback, state) end end
+                    }
+                end
+
+                return sectionApi
+            end
+
+            table.insert(tabs, tab)
+            -- โชว์แท็บแรกทันที
+            if #tabs==1 then
+                for _,t in ipairs(tabs) do if t._container then t._container.Visible=false end end
+                tab._container.Visible=true
+                tab._leftBtn.UIStroke.Transparency = 0
+            else
+                tab._container.Visible=false
+                tab._leftBtn.UIStroke.Transparency = 0.1
+            end
+            return tab
+        end
+
+        return win
+    end
+
+    -- ใช้งานกับสคริปต์ที่เรียก Kavo:
+    -- local Library = Library or LibraryKavoCompat
+    if not _G.KavoCompat then _G.KavoCompat = {CreateLib = Library.CreateLib, ToggleUI = function() Library:ToggleUI() end} end
 end
---========================================================
--- LEFT ONLY: Fixed-length overlay border (above all UIs)
---  - ยาวกว่าปุ่มข้างละ 18px (แก้ที่ SIDE_EXT)
---  - วาดใน ScreenGui แยก DisplayOrder สูงสุด → ไม่โดนบัง
---========================================================
-do
-    local GREEN     = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
-    local SIDE_EXT  = 18   -- ยื่นออก "แต่ละข้าง" กี่พิกเซล (เพิ่ม/ลดได้)
-    local EXTRA_H   =  8   -- สูงกว่าเนื้อปุ่มอีกเล็กน้อย
-    local RADIUS    = 12
-    local THICK     = 2
-
-    -- หา LeftScroll (คอนเทนเนอร์ปุ่มฝั่งซ้าย)
-    local leftScroll =
-        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or
-        (left and left:FindFirstChild("LeftScroll"))
-    if not (leftScroll and leftScroll:IsA("ScrollingFrame")) then return end
-
-    -- สร้าง ScreenGui overlay แยก (อยู่บนสุด)
-    local overlayGui = game:GetService("CoreGui"):FindFirstChild("UFOHubX_Overlay")
-    if not overlayGui then
-        overlayGui = Instance.new("ScreenGui")
-        overlayGui.Name = "UFOHubX_Overlay"
-        overlayGui.ResetOnSpawn = false
-        overlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        overlayGui.DisplayOrder = 999  -- สูงกว่า UI ใหญ่แน่นอน
-        if syn and syn.protect_gui then pcall(function() syn.protect_gui(overlayGui) end) end
-        if gethui then pcall(function() overlayGui.Parent = gethui() end) else overlayGui.Parent = game:GetService("CoreGui") end
-    end
-
-    -- เลเยอร์วาดกรอบเต็มหน้าจอ
-    local overlay = overlayGui:FindFirstChild("LeftOverlay")
-    if not overlay then
-        overlay = Instance.new("Frame")
-        overlay.Name = "LeftOverlay"
-        overlay.Parent = overlayGui
-        overlay.BackgroundTransparency = 1
-        overlay.BorderSizePixel = 0
-        overlay.ClipsDescendants = false
-        overlay.Size = UDim2.new(1,0,1,0)
-        overlay.Position = UDim2.new(0,0,0,0)
-        overlay.ZIndex = 999
-        overlay.Active = false
-    end
-
-    -- สร้าง/อัปเดตกรอบให้แต่ละปุ่ม (อ้างอิงตำแหน่งจริงบนจอ)
-    local function drawFor(btn: TextButton)
-        if not (btn and btn:IsA("TextButton")) then return end
-
-        local name = "Border_"..btn:GetDebugId(0) -- กันชื่อชนแม้รีเฟรช
-        local b = overlay:FindFirstChild(name)
-        if not b then
-            b = Instance.new("Frame")
-            b.Name = name
-            b.Parent = overlay
-            b.BackgroundTransparency = 1
-            b.BorderSizePixel = 0
-            b.Active = false
-            b.ZIndex = 999
-
-            local c = Instance.new("UICorner", b)  c.CornerRadius = UDim.new(0, RADIUS)
-            local s = Instance.new("UIStroke", b)
-            s.Color = GREEN
-            s.Thickness = THICK
-            s.Transparency = 0.10
-            s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            s.LineJoinMode = Enum.LineJoinMode.Round
-        end
-
-        -- วัดจากตำแหน่ง/ขนาดจริง (Absolute) บนจอ → ไม่ต้องพึ่ง CanvasPosition
-        local absPos  = btn.AbsolutePosition
-        local absSize = btn.AbsoluteSize
-
-        -- ขนาดกรอบ = ขนาดปุ่ม + ส่วนยื่นสองข้าง + สูงเพิ่ม
-        local w = absSize.X + SIDE_EXT*2
-        local h = absSize.Y + EXTRA_H
-        local x = absPos.X - SIDE_EXT
-        local y = absPos.Y - math.floor(EXTRA_H/2)
-
-        b.Position = UDim2.fromOffset(x, y)
-        b.Size     = UDim2.fromOffset(w, h)
-        b.Visible  = btn.Visible
-    end
-
-    -- วาดให้ทุกปุ่มในซ้าย
-    local function refreshAll()
-        for _,ch in ipairs(leftScroll:GetChildren()) do
-            if ch:IsA("TextButton") then drawFor(ch) end
-        end
-    end
-
-    refreshAll()
-
-    -- ผูกอัปเดตอัตโนมัติเมื่อขนาด/ตำแหน่ง/เลื่อนเปลี่ยน
-    leftScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshAll)
-    leftScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshAll)
-    leftScroll.ChildAdded:Connect(function(ch) if ch:IsA("TextButton") then task.defer(function() drawFor(ch) end) end end)
-    for _,ch in ipairs(leftScroll:GetChildren()) do
-        if ch:IsA("TextButton") then
-            ch:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() drawFor(ch) end)
-            ch:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() drawFor(ch) end)
-            ch:GetPropertyChangedSignal("Visible"):Connect(function() drawFor(ch) end)
-        end
-    end
-end
---==================== END LEFT FIXED OVERLAY BORDER ====================
+--====================== END KAVO COMPAT LAYER ======================
