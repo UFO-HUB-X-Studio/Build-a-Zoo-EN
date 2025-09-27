@@ -322,57 +322,73 @@ btnMini:GetPropertyChangedSignal("Text"):Connect(function()
     setCollapsedUI(btnMini.Text == "▢")
 end)
 --========================================================
--- UFO HUB X — ONLY "🏠 Home" Sidebar + Page Switch (full width)
--- * Plug-in snippet: paste into your main script *
+-- Sidebar Home (เต็มความกว้างของแถบซ้ายเป๊ะ)
+-- ต้องมี: left (Frame), contentScroll (ScrollingFrame), pgHome (Frame), สี ACCENT/SUB/FG
 --========================================================
 
--- 1) Clean up old Home buttons to avoid duplicates
+-- 1) สร้าง/ปรับ ScrollingFrame ให้กินเต็ม left (ไม่เหลือขอบแอบ 5px)
+local leftScroll = left:FindFirstChild("LeftScroll")
+if not leftScroll then
+    leftScroll = Instance.new("ScrollingFrame")
+    leftScroll.Name = "LeftScroll"
+    leftScroll.Parent = left
+end
+leftScroll.BackgroundTransparency = 1
+leftScroll.BorderSizePixel = 0
+leftScroll.Size = UDim2.new(1, 0, 1, 0)       -- กินเต็มกรอบซ้าย
+leftScroll.Position = UDim2.new(0, 0, 0, 0)    -- ไม่เหลือ offset
+leftScroll.ClipsDescendants = true
+leftScroll.ScrollBarThickness = 4
+leftScroll.ScrollBarImageColor3 = ACCENT
+leftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+leftScroll.CanvasSize = UDim2.new(0,0,0,0)
+
+-- ให้มี UIPadding ฝั่งซ้าย/ขวาเท่ากัน (ไว้ควบคุมให้ปุ่มยาวถึงขอบใน)
+local pad = leftScroll:FindFirstChildOfClass("UIPadding")
+if not pad then pad = Instance.new("UIPadding"); pad.Parent = leftScroll end
+pad.PaddingLeft  = UDim.new(0, 8)
+pad.PaddingRight = UDim.new(0, 8)
+pad.PaddingTop   = UDim.new(0, 8)
+pad.PaddingBottom= UDim.new(0, 8)
+
+-- จัด Layout แนวตั้ง
+local layout = leftScroll:FindFirstChildOfClass("UIListLayout")
+if not layout then layout = Instance.new("UIListLayout"); layout.Parent = leftScroll end
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+layout.VerticalAlignment = Enum.VerticalAlignment.Top
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- 2) ลบปุ่ม Home เก่า กันซ้อน
 for _,c in ipairs(leftScroll:GetChildren()) do
-    if c:IsA("TextButton") then
-        local txt = (c.Text or ""):lower()
-        local nm  = (c.Name or ""):lower()
-        if nm == "home" or txt:find("home") or txt:find("หน้าหลัก") then
-            c:Destroy()
-        end
+    if c:IsA("TextButton") and (c.Name=="Home" or c.Text=="Home" or c.Text=="หน้าหลัก") then
+        c:Destroy()
     end
 end
 
--- 2) Read leftScroll paddings so the button fits EXACTLY to the right edge
-local function _pxFromUDim(u)
-    if typeof(u) == "UDim" then
-        return math.floor(leftScroll.AbsoluteSize.X * (u.Scale or 0) + (u.Offset or 0))
-    end
-    return 0
-end
+-- 3) ปุ่ม 🏠 Home ที่ "ยาวพอดีกับขอบขวาของแถบซ้าย"
+local PL = (pad.PaddingLeft.Offset or 0)
+local PR = (pad.PaddingRight.Offset or 0)
 
-local padObj = leftScroll:FindFirstChildOfClass("UIPadding")
-local PAD_L  = 0
-local PAD_R  = 0
-if padObj then
-    PAD_L = _pxFromUDim(padObj.PaddingLeft or UDim.new(0,0))
-    PAD_R = _pxFromUDim(padObj.PaddingRight or UDim.new(0,0))
-end
-
--- 3) Create the Home button (width = 100% - (left+right padding))
 local btnHome = Instance.new("TextButton")
 btnHome.Name = "Home"
 btnHome.Parent = leftScroll
 btnHome.AutoButtonColor = true
 btnHome.BackgroundColor3 = SUB
 btnHome.Text = "🏠 Home"
-btnHome.TextColor3 = Color3.fromRGB(255,255,255)
+btnHome.TextColor3 = Color3.fromRGB(255,255,255) -- ตัวอักษรสีขาว
 btnHome.Font = Enum.Font.GothamBold
 btnHome.TextSize = 16
 btnHome.TextXAlignment = Enum.TextXAlignment.Left
-btnHome.Size = UDim2.new(1, -(PAD_L + PAD_R), 0, 36) -- fill to the RIGHT edge exactly
-btnHome.Position = UDim2.new(0, PAD_L, 0, 0)         -- align with left padding
-btnHome.ZIndex = 3
+btnHome.Size = UDim2.new(1, -(PL+PR), 0, 36)   -- ความกว้าง = 100% - padding ซ้ายขวา
+btnHome.Position = UDim2.new(0, PL, 0, 0)      -- ชิดซ้ายเท่ากับ padding ซ้าย
 
 local _corner = Instance.new("UICorner"); _corner.CornerRadius = UDim.new(0,8); _corner.Parent = btnHome
 local _stroke = Instance.new("UIStroke"); _stroke.Color = ACCENT; _stroke.Transparency = 0.85; _stroke.Parent = btnHome
-local _pad    = Instance.new("UIPadding"); _pad.PaddingLeft = UDim.new(0,10); _pad.Parent = btnHome -- inner text pad
+local _inpad  = Instance.new("UIPadding"); _inpad.PaddingLeft = UDim.new(0,10); _inpad.Parent = btnHome
 
--- 4) Sidebar highlight logic (single-button safe)
+-- 4) ไฮไลต์ปุ่ม + ระบบสลับหน้าไป pgHome (contentScroll ต้องมีอยู่แล้ว)
 local function setSidebarSelected(btn)
     for _,c in ipairs(leftScroll:GetChildren()) do
         if c:IsA("TextButton") then
@@ -386,25 +402,19 @@ local function setSidebarSelected(btn)
     end
 end
 
--- 5) Page registry + switcher
 local Pages = { ["Home"] = pgHome }
-
 local function showPage(name)
-    for key,frame in pairs(Pages) do
-        if frame and frame.Parent then
-            frame.Visible = (key == name)
-        end
+    for n,frame in pairs(Pages) do
+        if frame and frame.Parent then frame.Visible = (n == name) end
     end
-    if contentScroll then
-        contentScroll.CanvasPosition = Vector2.new(0,0) -- reset scroll to top
-    end
+    if contentScroll then contentScroll.CanvasPosition = Vector2.new(0,0) end
 end
 
--- 6) Bind click and set defaults
 btnHome.MouseButton1Click:Connect(function()
     showPage("Home")
     setSidebarSelected(btnHome)
 end)
 
+-- ค่าเริ่มต้น
 showPage("Home")
 setSidebarSelected(btnHome)
