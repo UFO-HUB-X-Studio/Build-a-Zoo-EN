@@ -1,5 +1,5 @@
 --========================================================
--- UFO HUB X — FULL (with Sidebar/Home scrolling + Create, Mobile Patch)
+-- UFO HUB X — FULL (with Sidebar & Content Scrolling)
 --========================================================
 
 -------------------- Services --------------------
@@ -22,7 +22,7 @@ local CENTER_TIME  = 0.25
 local TOGGLE_DOCKED = true            -- เริ่มแบบเกาะซ้าย
 
 -- AFK
-local INTERVAL_SEC = 5*60             -- กี่วินาทีต่อหนึ่งครั้งคลิก (5 นาที)
+local INTERVAL_SEC = 5*60             -- วนคลิกทุก 5 นาที
 
 -------------------- Helpers --------------------
 local function safeParent(gui)
@@ -112,21 +112,128 @@ local function mkX(rot)
 end
 mkX(45); mkX(-45)
 
--- Sidebar ------------------------------------------------
-local left = make("Frame", {Parent=main, Size=UDim2.new(0,170,1,-60), Position=UDim2.new(0,12,0,55),
-    BackgroundColor3=Color3.fromRGB(18,18,18)},
-    {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.85})})
-make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
+----------------------------------------------------------------
+-- Sidebar (LEFT)  >>> แปลงเป็น ScrollingFrame
+----------------------------------------------------------------
+local left = make("Frame", {
+    Parent=main, Size=UDim2.new(0,170,1,-60), Position=UDim2.new(0,12,0,55),
+    BackgroundColor3=Color3.fromRGB(18,18,18)
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,12)}),
+    make("UIStroke",{Color=ACCENT, Transparency=0.85})
+})
 
--- Content ------------------------------------------------
-local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
-    BackgroundColor3=D_GREY},
-    {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
+-- พื้นที่เลื่อนด้านใน (คงหน้าตาเดิม แต่เลื่อนในกรอบนี้)
+local leftScroll = make("ScrollingFrame", {
+    Name="LeftScroll", Parent=left, BackgroundTransparency=1, BorderSizePixel=0,
+    Size=UDim2.new(1,-12,1,-12), Position=UDim2.new(0,6,0,6),
+    ScrollBarThickness=6, AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    CanvasSize=UDim2.new(0,0,0,0), ScrollingDirection=Enum.ScrollingDirection.Y,
+    ScrollBarImageTransparency=0.1, ScrollBarImageColor3=ACCENT, ClipsDescendants=true
+},{})
+make("UIListLayout",{Parent=leftScroll, Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
+make("UIPadding",{Parent=leftScroll, PaddingLeft=UDim.new(0,2), PaddingRight=UDim.new(0,2), PaddingTop=UDim.new(0,2), PaddingBottom=UDim.new(0,2)})
 
-local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
-    BackgroundTransparency=1, Visible=true}, {})
+local function mkLeftButton(text)
+    local btn = make("TextButton",{
+        Parent=leftScroll, AutoButtonColor=false,
+        Size=UDim2.new(1, -8, 0, 38), BackgroundColor3=SUB,
+        Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG, Text="   "..text
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0})
+    })
+    return btn
+end
 
--------------------- Toggle Button (dock + drag) --------------------
+----------------------------------------------------------------
+-- Content (RIGHT)  >>> แปลงเป็น ScrollingFrame
+----------------------------------------------------------------
+local content = make("Frame", {
+    Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
+    BackgroundColor3=D_GREY
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,12)}),
+    make("UIStroke",{Color=ACCENT, Transparency=0.8})
+})
+
+-- ขอบใน + พื้นที่เลื่อน
+local contentScroll = make("ScrollingFrame",{
+    Name="ContentScroll", Parent=content, BackgroundTransparency=1, BorderSizePixel=0,
+    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
+    ScrollBarThickness=8, AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    CanvasSize=UDim2.new(0,0,0,0), ScrollingDirection=Enum.ScrollingDirection.Y,
+    ScrollBarImageTransparency=0.1, ScrollBarImageColor3=ACCENT, ClipsDescendants=true
+},{})
+make("UIListLayout",{Parent=contentScroll, Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
+
+-- แถวสวิตช์สไตล์เดิม
+local function mkSwitchRow(labelText, stateDefault)
+    local row = make("Frame",{
+        Parent=contentScroll, BackgroundColor3=SUB, Size=UDim2.new(1,0,0,48)
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,10)}),
+        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0})
+    })
+    make("TextLabel",{
+        Parent=row, BackgroundTransparency=1, Position=UDim2.new(0,12,0,0),
+        Size=UDim2.new(1,-90,1,0), Text=labelText, TextColor3=FG, Font=Enum.Font.GothamBold, TextSize=16,
+        TextXAlignment=Enum.TextXAlignment.Left
+    },{})
+
+    local dot = make("Frame",{
+        Parent=row, AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-16,0.5,0),
+        Size=UDim2.new(0,22,0,22), BackgroundColor3=(stateDefault and ACCENT or OFFCOL)
+    },{
+        make("UICorner",{CornerRadius=UDim.new(1,0)}),
+        make("UIStroke",{Color=Color3.fromRGB(0,0,0), Transparency=0.6})
+    })
+
+    local btn = make("TextButton",{
+        Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,0,1,0), Text=""
+    },{})
+    local state = stateDefault
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        TS:Create(dot, TweenInfo.new(.12), {BackgroundColor3 = state and ACCENT or OFFCOL}):Play()
+    end)
+    return row
+end
+
+----------------------------------------------------------------
+-- หน้า Home (ตัวอย่างตามรูป: AFK/Auto Collect/Auto Egg Hatch)
+----------------------------------------------------------------
+local btnHome   = mkLeftButton("Home")
+local btnShop   = mkLeftButton("Shop")
+local btnFish   = mkLeftButton("Fishing")
+
+-- หน้าคอนเทนต์ใช้การสลับ Visible ผ่านกลุ่ม (รองรับเพิ่มหน้าในอนาคต)
+local pages = {}
+local function newPage(name)
+    local page = make("Frame",{
+        Parent=contentScroll, Size=UDim2.new(1,0,0,0), BackgroundTransparency=1
+    },{})
+    table.insert(pages, page)
+    return page
+end
+
+-- โครงสร้างหน้า Home
+local pageHome = newPage("Home")
+-- เติมแถวสวิตช์ลงใน pageHome ผ่าน container เฉพาะของมัน
+local pageHomeList = make("Frame",{
+    Parent=pageHome, Size=UDim2.new(1,0,0,0), BackgroundTransparency=1
+},{})
+make("UIListLayout",{Parent=pageHomeList, Padding=UDim.new(0,10)})
+
+mkSwitchRow("AFK (OFF)", false)
+mkSwitchRow("Auto Collect Money (OFF)", false)
+mkSwitchRow("Auto Egg Hatch (OFF)", false)
+
+-- (ถ้าต้องการหน้าถัดไป สามารถสร้างด้วย newPage() แล้วเติมแถวได้เลย)
+
+----------------------------------------------------------------
+-- Toggle Button (dock + drag)
+----------------------------------------------------------------
 local btnToggle = make("ImageButton", {
     Parent=toggleGui, Size=UDim2.new(0,64,0,64),
     BackgroundColor3=SUB, AutoButtonColor=false, ClipsDescendants=true,
@@ -203,339 +310,4 @@ UIS.InputBegan:Connect(function(i,gp)
         TOGGLE_DOCKED = not TOGGLE_DOCKED
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
-end)
-
-----------------------------------------------------------------
--- 🧭 [ADD-ON] SCROLL BOTH SIDES + BUILDER LIST (เพิ่มอย่างเดียว)
--- - Sidebar: ScrollingFrame ภายใน left (เรียงเก่าบน→ใหม่ล่าง)
--- - Home: ถ้ายังไม่มี list จะสร้างให้ + API + ปุ่ม Create
-----------------------------------------------------------------
-do
-    -- Sidebar ---------------------------------------------------
-    if not left:FindFirstChild("UFOX_LeftList") then
-        local sb = make("ScrollingFrame",{
-            Name="UFOX_LeftList", Parent=left,
-            BackgroundColor3 = Color3.fromRGB(20,20,20),
-            BorderSizePixel = 0, ClipsDescendants = true,
-            Size=UDim2.new(1,-12,1,-12), Position=UDim2.new(0,6,0,6),
-            ScrollBarThickness = 6, CanvasSize = UDim2.new(0,0,0,0),
-            ZIndex = left.ZIndex + 1
-        },{
-            make("UICorner",{CornerRadius=UDim.new(0,12)}),
-            make("UIStroke",{Color=ACCENT, Transparency=0.85}),
-            make("UIPadding",{PaddingTop=UDim.new(0,8), PaddingBottom=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8)})
-        })
-
-        local sblay = make("UIListLayout",{
-            Parent=sb, FillDirection=Enum.FillDirection.Vertical,
-            HorizontalAlignment=Enum.HorizontalAlignment.Left,
-            SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,8)
-        },{})
-
-        local function sbUpdate()
-            task.defer(function()
-                local sz = sblay.AbsoluteContentSize
-                sb.CanvasSize = UDim2.fromOffset(0, sz.Y + 16)
-            end)
-        end
-        sblay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(sbUpdate)
-
-        local function makeSideButton(text, onclick, order)
-            local btn = make("TextButton",{
-                Parent=sb, Name="UFOX_SideBtn", LayoutOrder = order or 0,
-                AutoButtonColor=false, BackgroundColor3=SUB,
-                Size=UDim2.new(1, -0, 0, 36),
-                Font=Enum.Font.GothamBold, TextSize=14, TextColor3=FG,
-                Text = text or "Item"
-            },{
-                make("UICorner",{CornerRadius=UDim.new(0,10)}),
-                make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.2)})
-            })
-            if type(onclick)=="function" then
-                btn.MouseButton1Click:Connect(function() pcall(onclick, btn) end)
-            end
-            local glow = make("Frame",{
-                Parent=btn, BackgroundColor3=ACCENT, BorderSizePixel=0,
-                Size=UDim2.new(0,0,0,2), Position=UDim2.new(0,0,1,-2)
-            },{})
-            TS:Create(glow, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size=UDim2.new(1,0,0,2)}):Play()
-            task.delay(0.35, function()
-                TS:Create(glow, TweenInfo.new(0.25), {BackgroundTransparency=1}):Play()
-                task.delay(0.25, function() pcall(function() glow:Destroy() end) end)
-            end)
-            sbUpdate()
-            return btn
-        end
-
-        local SSEQ = 0
-        _G.UFOX_AddSideItem = function(text, onclick)
-            SSEQ += 1
-            local b = makeSideButton(text, onclick, SSEQ)
-            task.defer(function()
-                local maxY = math.max(0, sb.AbsoluteCanvasSize.Y - sb.AbsoluteWindowSize.Y)
-                sb.CanvasPosition = Vector2.new(0, maxY)
-            end)
-            return b
-        end
-
-        _G.UFOX_LeftScrollToLatest = function()
-            task.defer(function()
-                local maxY = math.max(0, sb.AbsoluteCanvasSize.Y - sb.AbsoluteWindowSize.Y)
-                sb.CanvasPosition = Vector2.new(0, maxY)
-            end)
-        end
-
-        local ctrlBar = make("Frame",{
-            Parent = sb, BackgroundTransparency=1,
-            Size = UDim2.new(1, -0, 0, 0),
-            LayoutOrder = -9999
-        },{})
-        local function tiny(name, txt, posY, cb)
-            local b = make("TextButton",{
-                Parent=ctrlBar, Name=name, AutoButtonColor=false, Text=txt,
-                Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG,
-                Size=UDim2.new(0,30,0,30), Position=UDim2.new(1,-36,0,posY),
-                BackgroundColor3=SUB
-            },{
-                make("UICorner",{CornerRadius=UDim.new(0,8)}),
-                make("UIStroke",{Color=ACCENT, Transparency=0.4})
-            })
-            b.MouseButton1Click:Connect(cb)
-            return b
-        end
-        tiny("UFOX_LeftUp","▲",6,function()
-            sb.CanvasPosition = Vector2.new(0, math.max(0, sb.CanvasPosition.Y - 140))
-        end)
-        tiny("UFOX_LeftDn","▼",42,function()
-            local maxY = math.max(0, sb.AbsoluteCanvasSize.Y - sb.AbsoluteWindowSize.Y)
-            sb.CanvasPosition = Vector2.new(0, math.min(maxY, sb.CanvasPosition.Y + 140))
-        end)
-
-        UIS.InputBegan:Connect(function(i,gp)
-            if gp then return end
-            local ctrl = UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
-            if ctrl and i.KeyCode==Enum.KeyCode.PageUp then
-                sb.CanvasPosition = Vector2.new(0, math.max(0, sb.CanvasPosition.Y - 180))
-            elseif ctrl and i.KeyCode==Enum.KeyCode.PageDown then
-                local maxY = math.max(0, sb.AbsoluteCanvasSize.Y - sb.AbsoluteWindowSize.Y)
-                sb.CanvasPosition = Vector2.new(0, math.min(maxY, sb.CanvasPosition.Y + 180))
-            end
-        end)
-
-        sbUpdate()
-    end
-
-    -- Home ------------------------------------------------------
-    local homeHasList = pgHome:FindFirstChild("UFOX_List") ~= nil
-    if not homeHasList then
-        local listWrap = make("Frame",{
-            Parent = pgHome, BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, -58), Position = UDim2.new(0, 0, 0, 58),
-            Name = "UFOX_ListWrap"
-        },{})
-
-        local sc = make("ScrollingFrame",{
-            Parent = listWrap, Name="UFOX_List",
-            BackgroundColor3 = Color3.fromRGB(20,20,20),
-            BorderSizePixel = 0, ClipsDescendants = true,
-            Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6),
-            ScrollBarThickness = 6, CanvasSize = UDim2.new(0,0,0,0)
-        },{
-            make("UICorner",{CornerRadius=UDim.new(0,12)}),
-            make("UIStroke",{Color=ACCENT, Transparency=0.85}),
-            make("UIPadding",{PaddingTop=UDim.new(0,10), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,10), PaddingRight=UDim.new(0,10)})
-        })
-
-        local lay = make("UIListLayout",{
-            Parent = sc, FillDirection = Enum.FillDirection.Vertical,
-            HorizontalAlignment = Enum.HorizontalAlignment.Left,
-            SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,10)
-        },{})
-
-        local function updateCanvas()
-            task.defer(function()
-                local sz = lay.AbsoluteContentSize
-                sc.CanvasSize = UDim2.fromOffset(0, sz.Y + 20)
-            end)
-        end
-        lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-
-        local function tiny(parent, name, txt, posY, cb)
-            local b = make("TextButton",{
-                Parent=parent, Name=name, AutoButtonColor=false, Text=txt,
-                Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG,
-                Size=UDim2.new(0,30,0,30), Position=UDim2.new(1,-38,0,posY),
-                BackgroundColor3=SUB
-            },{
-                make("UICorner",{CornerRadius=UDim.new(0,8)}),
-                make("UIStroke",{Color=ACCENT, Transparency=0.4})
-            })
-            b.MouseButton1Click:Connect(cb)
-            return b
-        end
-        tiny(listWrap, "UFOX_ScrollUp", "▲", 6, function()
-            sc.CanvasPosition = Vector2.new(0, math.max(0, sc.CanvasPosition.Y - 140))
-        end)
-        tiny(listWrap, "UFOX_ScrollDn", "▼", 42, function()
-            local maxY = math.max(0, sc.AbsoluteCanvasSize.Y - sc.AbsoluteWindowSize.Y)
-            sc.CanvasPosition = Vector2.new(0, math.min(maxY, sc.CanvasPosition.Y + 140))
-        end)
-
-        local SEQ = 0
-        local function makeCard(title, subtitle)
-            SEQ += 1
-            local card = make("Frame",{
-                Parent = sc, Name = "UFOX_Item_"..SEQ, LayoutOrder = SEQ,
-                BackgroundColor3=Color3.fromRGB(24,24,24), BorderSizePixel=0,
-                Size = UDim2.new(1, -0, 0, 56), ClipsDescendants=true
-            },{
-                make("UICorner",{CornerRadius=UDim.new(0,10)}),
-                make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.2})
-            })
-
-            local lpad = make("Frame",{Parent=card, BackgroundTransparency=1,
-                Size=UDim2.new(1,-16,1,-12), Position=UDim2.new(0,8,0,6)},{})
-
-            make("TextLabel",{Parent=lpad, BackgroundTransparency=1,
-                Size=UDim2.new(1, -0, 0, 22), Position=UDim2.new(0,0,0,0),
-                Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG,
-                Text = title or ("Item #" .. tostring(SEQ)),
-                TextXAlignment=Enum.TextXAlignment.Left
-            },{})
-
-            make("TextLabel",{Parent=lpad, BackgroundTransparency=1,
-                Size=UDim2.new(1, -0, 0, 18), Position=UDim2.new(0,0,0,24),
-                Font=Enum.Font.Gotham, TextSize=13, TextColor3=Color3.fromRGB(170,170,170),
-                Text = subtitle or os.date("!%Y-%m-%d %H:%M UTC"),
-                TextXAlignment=Enum.TextXAlignment.Left
-            },{})
-
-            local glow = make("Frame",{Parent=card, BackgroundColor3=ACCENT, BorderSizePixel=0,
-                Size=UDim2.new(0,0,0,2), Position=UDim2.new(0,0,1,-2)},{})
-            TS:Create(glow, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size=UDim2.new(1,0,0,2)}):Play()
-            task.delay(0.35, function()
-                TS:Create(glow, TweenInfo.new(0.25), {BackgroundTransparency=1}):Play()
-                task.delay(0.25, function() pcall(function() glow:Destroy() end) end)
-            end)
-
-            updateCanvas()
-            return card
-        end
-
-        -- 🔧 API ฝั่งขวา
-        _G.UFOX_AddItem = function(title, subtitle)
-            local item = makeCard(title, subtitle)
-            task.defer(function()
-                local maxY = math.max(0, sc.AbsoluteCanvasSize.Y - sc.AbsoluteWindowSize.Y)
-                sc.CanvasPosition = Vector2.new(0, maxY)
-            end)
-            return item
-        end
-
-        _G.UFOX_ScrollToLatest = function()
-            task.defer(function()
-                local maxY = math.max(0, sc.AbsoluteCanvasSize.Y - sc.AbsoluteWindowSize.Y)
-                sc.CanvasPosition = Vector2.new(0, maxY)
-            end)
-        end
-
-        -- Toolbar + ปุ่ม Create
-        local bar = make("Frame",{
-            Parent = pgHome, BackgroundTransparency=1,
-            Size = UDim2.new(1, -20, 0, 46), Position = UDim2.new(0,10,0,10),
-            Name = "UFOX_Toolbar"
-        },{})
-        local createBtn = make("TextButton",{
-            Parent=bar, Name="UFOX_CreateBtn", AutoButtonColor=false,
-            Text="Create", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=FG,
-            BackgroundColor3=SUB,
-            Size=UDim2.new(0,100,1,0), Position=UDim2.new(0,0,0,0)
-        },{
-            make("UICorner",{CornerRadius=UDim.new(0,10)}),
-            make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.2})
-        })
-
-        local AUTO = 0
-        createBtn.MouseButton1Click:Connect(function()
-            AUTO += 1
-            _G.UFOX_AddItem("Created item #" .. tostring(AUTO))
-        end)
-
-        UIS.InputBegan:Connect(function(i, gp)
-            if gp then return end
-            if i.KeyCode == Enum.KeyCode.N
-                and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
-                createBtn:Activate()
-            elseif i.KeyCode == Enum.KeyCode.End
-                and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
-                _G.UFOX_ScrollToLatest()
-            end
-        end)
-
-        updateCanvas()
-    end
-end
-
-----------------------------------------------------------------
--- 📱 MOBILE PATCH: attach GUI to PlayerGui (safe add-on)
-----------------------------------------------------------------
-task.defer(function()
-    pcall(function() if not game:IsLoaded() then game.Loaded:Wait() end end)
-
-    local function bestGuiParent()
-        if typeof(gethui) == "function" then
-            local ok, ui = pcall(gethui)
-            if ok and typeof(ui) == "Instance" then return ui end
-        end
-        local CGok = (pcall(function() return CG.Parent ~= nil end) and CG.Parent ~= nil)
-        if CGok then return CG end
-        local pg = LP:FindFirstChildOfClass("PlayerGui") or LP:WaitForChild("PlayerGui", 2)
-        return pg or CG
-    end
-
-    local function attachAll()
-        local par = bestGuiParent()
-        pcall(function() if mainGui.Parent ~= par then mainGui.Parent = par end end)
-        pcall(function() if toggleGui.Parent ~= par then toggleGui.Parent = par end end)
-        pcall(function() mainGui.Enabled = true end)
-        pcall(function() toggleGui.Enabled = true end)
-    end
-
-    attachAll()
-
-    mainGui.AncestryChanged:Connect(function(_, parent)
-        if parent == nil then attachAll() end
-    end)
-    toggleGui.AncestryChanged:Connect(function(_, parent)
-        if parent == nil then attachAll() end
-    end)
-
-    task.delay(0.2, function()
-        pcall(function()
-            if Camera and main then
-                local vp = Camera.ViewportSize
-                main.Position = UDim2.fromOffset(
-                    math.floor((vp.X - main.AbsoluteSize.X)/2) + X_OFFSET,
-                    math.floor((vp.Y - main.AbsoluteSize.Y)/2) + Y_OFFSET
-                )
-                if TOGGLE_DOCKED and btnToggle then
-                    local mPos  = main.AbsolutePosition
-                    local mSize = main.AbsoluteSize
-                    local tX = math.floor(mPos.X - btnToggle.AbsoluteSize.X - TOGGLE_GAP)
-                    local tY = math.floor(mPos.Y + (mSize.Y - btnToggle.AbsoluteSize.Y)/2 + TOGGLE_DY)
-                    btnToggle.Position = UDim2.fromOffset(tX, tY)
-                end
-            end
-        end)
-    end)
-
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "UFO HUB X",
-            Text  = "UI loaded (mobile)",
-            Duration = 2
-        })
-    end)
 end)
