@@ -1349,3 +1349,115 @@ if not LEFT:GetAttribute("UFOX_SidebarNormalizerInstalled") then
         end
     end)
 end
+-- ========= SCROLLER (ก๊อปวางครั้งเดียว) =========
+-- ต้องมีตัวแปร 'content' และสี 'ACCENT' อยู่แล้ว
+
+-- สร้าง ScrollingFrame ใน content (ใช้ซ้ำได้ ไม่ซ้ำซ้อน)
+local sc = content:FindFirstChild("UFOX_Scroller")
+if not sc then
+    sc = Instance.new("ScrollingFrame")
+    sc.Name = "UFOX_Scroller"
+    sc.Parent = content
+    sc.BackgroundTransparency = 1
+    sc.Size = UDim2.new(1, -18, 1, -18)
+    sc.Position = UDim2.new(0, 9, 0, 9)
+    sc.ScrollBarThickness = 8
+    sc.ScrollBarImageColor3 = ACCENT  -- แถบเลื่อนสีเขียว
+    sc.ElasticBehavior = Enum.ElasticBehavior.Never
+    sc.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    sc.CanvasSize = UDim2.new(0,0,0,0)
+
+    local pad = Instance.new("UIPadding", sc)
+    pad.PaddingTop = UDim.new(0,4)
+    pad.PaddingBottom = UDim.new(0,8)
+    pad.PaddingLeft = UDim.new(0,4)
+    pad.PaddingRight = UDim.new(0,4)
+
+    local list = Instance.new("UIListLayout", sc)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0,8)
+end
+
+-- เปิดหน้ามาให้เริ่มที่ด้านบนเสมอ
+local parentWin = content:FindFirstAncestorWhichIsA("GuiObject")
+if parentWin then
+    parentWin:GetPropertyChangedSignal("Visible"):Connect(function()
+        if parentWin.Visible then sc.CanvasPosition = Vector2.new(0,0) end
+    end)
+end
+
+-- ย้ายปุ่ม/แถวเก่าที่เคยใส่ใน content เข้า scroller อัตโนมัติ
+for _,ch in ipairs(content:GetChildren()) do
+    if ch ~= sc and ch:IsA("GuiObject") then
+        -- ข้ามกรอบสกินของ content เอง เช่น UICorner/UIStroke
+        if ch.ClassName ~= "UICorner" and ch.ClassName ~= "UIStroke" and ch.ClassName ~= "UIGradient" then
+            ch.Parent = sc
+        end
+    end
+end
+
+-- ===== helper สร้างแถวแบบ pill + สวิตช์ (ใช้หรือไม่ใช้ก็ได้) =====
+local function createRow(labelText, defaultOn)
+    local row = Instance.new("Frame")
+    row.Name = "Row_"..labelText:gsub("%W","")
+    row.Parent = sc
+    row.BackgroundColor3 = Color3.fromRGB(18,18,18)
+    row.BorderSizePixel = 0
+    row.Size = UDim2.new(1, 0, 0, 40)
+    local c = Instance.new("UICorner", row); c.CornerRadius = UDim.new(0,10)
+    local s = Instance.new("UIStroke", row); s.Color = ACCENT; s.Thickness = 2; s.Transparency = .2
+
+    local lb = Instance.new("TextLabel")
+    lb.Parent = row
+    lb.BackgroundTransparency = 1
+    lb.Text = labelText
+    lb.Font = Enum.Font.GothamBold
+    lb.TextSize = 16
+    lb.TextColor3 = Color3.fromRGB(230,230,230)
+    lb.TextXAlignment = Enum.TextXAlignment.Left
+    lb.Size = UDim2.new(1, -90, 1, 0)
+    lb.Position = UDim2.new(0, 12, 0, 0)
+
+    local btn = Instance.new("TextButton")
+    btn.Parent = row
+    btn.AutoButtonColor = false
+    btn.Text = ""
+    btn.AnchorPoint = Vector2.new(1,0.5)
+    btn.Position = UDim2.new(1, -12, 0.5, 0)
+    btn.Size = UDim2.fromOffset(58, 24)
+    btn.BackgroundColor3 = Color3.fromRGB(28,28,28)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1,0)
+    local bs = Instance.new("UIStroke", btn); bs.Color = ACCENT; bs.Transparency = .25
+
+    local knob = Instance.new("Frame")
+    knob.Parent = btn
+    knob.Size = UDim2.fromOffset(20,20)
+    knob.Position = UDim2.new(0,2,0,2)
+    knob.BorderSizePixel = 0
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+    local on = not not defaultOn
+    local function render()
+        if on then
+            lb.Text = labelText:gsub("%(OFF%)","(ON)")
+            knob.BackgroundColor3 = ACCENT
+            knob.Position = UDim2.new(1, -22, 0, 2)
+            btn.BackgroundColor3 = Color3.fromRGB(24,50,36)
+        else
+            lb.Text = labelText:gsub("%(ON%)","(OFF)")
+            knob.BackgroundColor3 = Color3.fromRGB(210,60,60)
+            knob.Position = UDim2.new(0, 2, 0, 2)
+            btn.BackgroundColor3 = Color3.fromRGB(28,28,28)
+        end
+    end
+    render()
+    btn.MouseButton1Click:Connect(function() on = not on; render() end)
+
+    return row
+end
+
+-- ===== ตัวอย่าง: สร้าง 3 แถว ถ้ายังไม่มี (ปล่อยลิสต์ว่างได้ ถ้านายมีปุ่มเองอยู่แล้ว) =====
+if not sc:FindFirstChild("Row_AFKOFF") then createRow("AFK (OFF)", false) end
+if not sc:FindFirstChild("Row_AutoCollectMoneyOFF") then createRow("Auto Collect Money (OFF)", false) end
+if not sc:FindFirstChild("Row_AutoEggHatchOFF") then createRow("Auto Egg Hatch (OFF)", false) end
+-- ========= /SCROLLER =========
