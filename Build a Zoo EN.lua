@@ -330,3 +330,69 @@ end
 --========================
 -- END ADD-ONLY: Scroll System
 --========================
+--========================================================
+-- ADD-ONLY: Emoji for Home (Left Button + Right Header)
+-- - เพิ่มอย่างเดียว ไม่แก้ของเดิม
+-- - วางอีโมจิให้อยู่ "ก่อนคำว่า Home" แบบพอดี
+--========================================================
+do
+    local function addEmojiToButton(btn, emoji, xOffset, sizePx)
+        if not (btn and btn:IsA("TextButton")) then return end
+        if btn:FindFirstChild("EmojiIcon") then return end -- กันซ้ำ
+
+        -- อีโมจิเป็น TextLabel โปร่งใส ซ้อนด้านซ้าย
+        make("TextLabel", {
+            Name = "EmojiIcon",
+            Parent = btn,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0, sizePx, 0, sizePx),
+            Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2)),
+            Font = Enum.Font.GothamBold,
+            Text = emoji,
+            TextSize = sizePx,          -- ให้สเกลตาม px เพื่อความเป๊ะ
+            TextColor3 = Color3.fromRGB(255,255,255),
+            ZIndex = (btn.ZIndex or 1) + 1,
+        },{})
+    end
+
+    local function addEmojiToHeader(headerFrame, emoji, xOffset, sizePx)
+        if not (headerFrame and headerFrame:IsA("Frame")) then return end
+        if headerFrame:FindFirstChild("EmojiIcon") then return end -- กันซ้ำ
+
+        make("TextLabel", {
+            Name = "EmojiIcon",
+            Parent = headerFrame,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(0, sizePx, 0, sizePx),
+            Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2)),
+            Font = Enum.Font.GothamBold,
+            Text = emoji,
+            TextSize = sizePx,
+            TextColor3 = Color3.fromRGB(255,255,255),
+            ZIndex = (headerFrame.ZIndex or 1) + 1,
+        },{})
+    end
+
+    -- ค้นหาปุ่ม/หัวข้อเป้าหมายจากที่สร้างไว้ก่อนหน้า
+    local L = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or (left and left:FindFirstChild("LeftScroll"))
+    local C = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or (pgHome and pgHome:FindFirstChild("ContentScroll"))
+
+    -- ปุ่มซ้าย: Btn_Home
+    if L then
+        local btnHome = L:FindFirstChild("Btn_Home")
+        -- วางอีโมจิ 🏠 ทางซ้าย ขนาด 18px ขยับจากขอบซ้าย 6px (พอดีกับ padding ปุ่ม 12px)
+        addEmojiToButton(btnHome, "🏠", 6, 18)
+    end
+
+    -- หัวข้อขวา: Header_Home
+    if C then
+        local hdr = C:FindFirstChild("Header_Home")
+        -- วางอีโมจิ 🏠 ทางซ้าย ขนาด 18px ขยับ 0→ให้ชิดซ้ายพอดีกับเส้นใต้
+        addEmojiToHeader(hdr, "🏠", 0, 18)
+    end
+end
+--========================================================
+-- END ADD-ONLY: Emoji for Home
+--========================================================
