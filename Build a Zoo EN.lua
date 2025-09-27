@@ -331,134 +331,82 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- FORCE PATCH: Home button + header with fallback + log
+-- PATCH: Single Sidebar Button styled like screenshot (Home only)
 --========================================================
 do
     local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local BTN_HEIGHT = 46
 
-    local function log(msg)
-        print("[UFO HUB X PATCH] " .. msg)
-    end
+    -- Ensure left scroller exists (add-only)
+    local leftScroll = (left and left:FindFirstChild("LeftScroll"))
+    if not leftScroll and left then
+        leftScroll = Instance.new("ScrollingFrame")
+        leftScroll.Name = "LeftScroll"
+        leftScroll.Parent = left
+        leftScroll.BackgroundTransparency = 1
+        leftScroll.BorderSizePixel = 0
+        leftScroll.ClipsDescendants = true
+        leftScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+        leftScroll.ScrollBarThickness = 6
+        leftScroll.ScrollBarImageColor3 = GREEN
+        leftScroll.Size = UDim2.new(1, -20, 1, -20)
+        leftScroll.Position = UDim2.new(0, 10, 0, 10)
 
-    local function ensureScrollFrame(parent, name)
-        if not parent then return nil end
-        local sc = parent:FindFirstChild(name)
-        if not (sc and sc:IsA("ScrollingFrame")) then
-            sc = Instance.new("ScrollingFrame")
-            sc.Name = name
-            sc.Parent = parent
-            sc.BackgroundTransparency = 1
-            sc.BorderSizePixel = 0
-            sc.ClipsDescendants = true
-            sc.ScrollingDirection = Enum.ScrollingDirection.Y
-            sc.ScrollBarThickness = 6
-            sc.ScrollBarImageColor3 = GREEN
-            sc.Size = UDim2.new(1,-20,1,-20)
-            sc.Position = UDim2.new(0,10,0,10)
+        local list = Instance.new("UIListLayout", leftScroll)
+        list.Padding = UDim.new(0, 8)
+        list.FillDirection = Enum.FillDirection.Vertical
+        list.SortOrder = Enum.SortOrder.LayoutOrder
 
-            local list = Instance.new("UIListLayout", sc)
-            list.Padding = UDim.new(0,8)
-            list.FillDirection = Enum.FillDirection.Vertical
-            list.SortOrder = Enum.SortOrder.LayoutOrder
-            list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                sc.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
-            end)
-        end
-        return sc
-    end
-
-    local function ensureEmoji(target, emoji, fallbackAssetId, xOffset, sizePx)
-        if not (target and target:IsA("GuiObject")) then return end
-        local lbl = target:FindFirstChild("EmojiIcon")
-        if not lbl then
-            lbl = Instance.new("TextLabel")
-            lbl.Name = "EmojiIcon"
-            lbl.Parent = target
-            lbl.BackgroundTransparency = 1
-            lbl.Size = UDim2.fromOffset(sizePx, sizePx)
-            lbl.Position = UDim2.new(0,xOffset,0.5,-sizePx/2)
-            lbl.Font = Enum.Font.GothamBold
-            lbl.Text = emoji
-            lbl.TextSize = sizePx
-            lbl.TextColor3 = Color3.new(1,1,1)
-            lbl.ZIndex = (target.ZIndex or 1)+1
-        end
-        task.defer(function()
-            if lbl and (lbl.TextBounds.X < 1 or lbl.TextBounds.Y < 1) then
-                lbl.Visible = false
-                if not target:FindFirstChild("EmojiImage") then
-                    local img = Instance.new("ImageLabel")
-                    img.Name = "EmojiImage"
-                    img.Parent = target
-                    img.BackgroundTransparency = 1
-                    img.Size = UDim2.fromOffset(sizePx, sizePx)
-                    img.Position = UDim2.new(0,xOffset,0.5,-sizePx/2)
-                    img.Image = "rbxassetid://"..tostring(fallbackAssetId or 112676905543996)
-                    img.ScaleType = Enum.ScaleType.Fit
-                    img.ZIndex = (target.ZIndex or 1)+1
-                end
-            end
+        list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            leftScroll.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
         end)
     end
 
-    -- LEFT
-    local leftScroll = (left and ensureScrollFrame(left,"LeftScroll"))
     if leftScroll then
+        -- Create/Update only ONE button: Btn_Home
         local btn = leftScroll:FindFirstChild("Btn_Home")
         if not (btn and btn:IsA("TextButton")) then
             btn = Instance.new("TextButton")
             btn.Name = "Btn_Home"
             btn.Parent = leftScroll
         end
-        btn.Size = UDim2.new(1,0,0,40)
-        btn.BackgroundColor3 = Color3.new(0,0,0)
-        btn.Text = "Home"
+
+        -- Style to match screenshot 100%
+        btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)    -- full width, 46px height
+        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        btn.AutoButtonColor = true
+        btn.Text = "👽  Home"                           -- emoji + text
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 16
-        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextSize = 18
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
         btn.TextXAlignment = Enum.TextXAlignment.Left
-        local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke",btn)
+        btn.LayoutOrder = 1
+
+        -- Rounded corners 12px
+        local corner = btn:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", btn)
+        corner.CornerRadius = UDim.new(0, 12)
+
+        -- Neon green border 2px
+        local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", btn)
         stroke.Color = GREEN
         stroke.Thickness = 2
         stroke.Transparency = 0.1
-        local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding",btn)
-        pad.PaddingLeft = UDim.new(0,28)
-        ensureEmoji(btn,"🏠",LOGO_ID,6,18)
-        log("Btn_Home created/updated")
-    else
-        log("⚠️ LeftScroll missing and could not be created")
-    end
 
-    -- RIGHT
-    local contentScroll = (pgHome and ensureScrollFrame(pgHome,"ContentScroll"))
-    if contentScroll then
-        local header = contentScroll:FindFirstChild("Header_Home")
-        if not (header and header:IsA("Frame")) then
-            header = Instance.new("Frame")
-            header.Name = "Header_Home"
-            header.Parent = contentScroll
+        -- Left padding for nice spacing
+        local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
+        pad.PaddingLeft = UDim.new(0, 12)
+        pad.PaddingRight = UDim.new(0, 12)
+
+        -- Subtle hover glow (no style change)
+        if not btn:FindFirstChild("._hoverHook") then
+            local hook = Instance.new("Folder"); hook.Name = "._hoverHook"; hook.Parent = btn
+            btn.MouseEnter:Connect(function()
+                game:GetService("TweenService"):Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0.05}):Play()
+            end)
+            btn.MouseLeave:Connect(function()
+                game:GetService("TweenService"):Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0}):Play()
+            end)
         end
-        header.BackgroundTransparency = 1
-        header.Size = UDim2.new(1,0,0,32)
-        local title = header:FindFirstChild("Title") or Instance.new("TextLabel",header)
-        title.Name = "Title"
-        title.BackgroundTransparency = 1
-        title.Text = "Home"
-        title.Font = Enum.Font.GothamBold
-        title.TextSize = 18
-        title.TextColor3 = Color3.new(1,1,1)
-        title.TextXAlignment = Enum.TextXAlignment.Left
-        title.Size = UDim2.new(1,-28,1,0)
-        title.Position = UDim2.new(0,28,0,0)
-        local line = header:FindFirstChild("Underline") or Instance.new("Frame",header)
-        line.Name = "Underline"
-        line.BorderSizePixel = 0
-        line.BackgroundColor3 = GREEN
-        line.Size = UDim2.new(1,0,0,2)
-        line.Position = UDim2.new(0,0,1,-2)
-        ensureEmoji(header,"🏠",LOGO_ID,4,18)
-        log("Header_Home created/updated")
-    else
-        log("⚠️ ContentScroll missing and could not be created")
     end
 end
+--========================================================
