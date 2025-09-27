@@ -438,4 +438,11 @@ do
 end
 --====================== END KAVO COMPAT LAYER ======================
 
-local Tab = Window:NewTab("TabName")
+local Library = _G.KavoCompat
+local Window  = Library.CreateLib("UFO HUB X")
+local Tab     = Window:NewTab("Main")
+local Sec     = Tab:NewSection("Menu")
+
+Sec:NewButton("👽 Home", nil, function()
+    print("Pressed Home")
+end)
