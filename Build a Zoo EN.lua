@@ -123,72 +123,89 @@ local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Positi
     BackgroundColor3=D_GREY},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
 ----------------------------------------------------------------
--- ✅ SCROLL AREA สำหรับ content (ก๊อปวางต่อจากที่สร้าง content)
+-- ✅ DROP-IN: Scroller สำหรับ content (เลื่อนขึ้นลง + แถบเขียวขวา)
 ----------------------------------------------------------------
-do
-    assert(content, "need 'content' frame")
+local ACCENT = ACCENT or Color3.fromRGB(0,255,140)
 
-    -- สร้าง ScrollingFrame ครอบทุกแถวใน content
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Name = "UFOX_Scroll"
-    scroll.Parent = content
-    scroll.BackgroundTransparency = 1
-    scroll.BorderSizePixel = 0
-    scroll.ClipsDescendants = true
-    scroll.Position = UDim2.new(0,10,0,10)
-    scroll.Size     = UDim2.new(1,-20,1,-20)
+assert(content, "[UFOX] ต้องมีตัวแปร 'content' (Frame ขวา) ก่อนนะ!")
 
-    -- ตั้งค่าการเลื่อน
-    scroll.ScrollingDirection     = Enum.ScrollingDirection.Y
-    scroll.AutomaticCanvasSize    = Enum.AutomaticSize.Y   -- ให้คำนวน Canvas ให้อัตโนมัติ
-    scroll.ScrollBarThickness     = 6
-    scroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
-    scroll.ElasticBehavior        = Enum.ElasticBehavior.WhenScrollable
-    scroll.ScrollBarImageTransparency = 0 -- ให้เห็นแถบเลื่อนชัด
+-- ลบ Scroller เดิม ถ้ามี
+local OLD = content:FindFirstChild("UFOX_Scroller")
+if OLD then OLD:Destroy() end
 
-    -- layout + padding ด้านใน
-    local pad = Instance.new("UIPadding", scroll)
-    pad.PaddingTop    = UDim.new(0,0)
-    pad.PaddingBottom = UDim.new(0,6)
-    pad.PaddingLeft   = UDim.new(0,0)
-    pad.PaddingRight  = UDim.new(0,0)
+-- สร้าง ScrollingFrame
+local sc = Instance.new("ScrollingFrame")
+sc.Name = "UFOX_Scroller"
+sc.Parent = content
+sc.Size = UDim2.fromScale(1,1)
+sc.Position = UDim2.fromOffset(0,0)
+sc.BackgroundTransparency = 1
+sc.BorderSizePixel = 0
+sc.ClipsDescendants = true
 
-    local layout = Instance.new("UIListLayout", scroll)
-    layout.FillDirection = Enum.FillDirection.Vertical
-    layout.SortOrder     = Enum.SortOrder.LayoutOrder
-    layout.Padding       = UDim.new(0,10)
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Stretch
-    layout.VerticalAlignment   = Enum.VerticalAlignment.Top
+-- ตั้งค่าเลื่อน (ให้เปิดมาอยู่บนสุด, แถบเลื่อนขวาเป็นสีเขียว)
+sc.ScrollingDirection = Enum.ScrollingDirection.Y
+sc.ScrollBarThickness = 8
+sc.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+sc.ScrollBarImageColor3 = ACCENT
+sc.ScrollBarImageTransparency = 0.05
+sc.CanvasPosition = Vector2.new(0,0)
+pcall(function() sc.AutomaticCanvasSize = Enum.AutomaticSize.Y end) -- ใช้ได้ในเวอร์ชันใหม่
 
-    -- ย้ายของเดิมใน content เข้าไปอยู่ใน scroll
-    -- (ทำแบบ defer เพื่อให้ของที่ถูกสร้างทีหลังไม่พลาด)
-    task.defer(function()
-        for _,child in ipairs(content:GetChildren()) do
-            if child ~= scroll and child:IsA("GuiObject") then
-                child.Parent = scroll
-                -- ถ้าเป็นแถวแบบปุ่ม (Frame/TextButton) และยังไม่ได้ตั้งให้ยืดเต็มกว้าง ก็ปรับให้ยืด
-                if (child:IsA("Frame") or child:IsA("TextButton")) and child.AutomaticSize == Enum.AutomaticSize.None then
-                    -- สูง 44 (ปรับได้), กว้างเต็ม
-                    child.Size = UDim2.new(1, -0, 0, child.Size.Y.Offset > 0 and child.Size.Y.Offset or 44)
-                end
-            end
+-- Padding ขอบใน
+local pad = Instance.new("UIPadding")
+pad.PaddingTop    = UDim.new(0,10)
+pad.PaddingBottom = UDim.new(0,10)
+pad.PaddingLeft   = UDim.new(0,10)
+pad.PaddingRight  = UDim.new(0,10)
+pad.Parent = sc
+
+-- จัดเรียงแนวตั้ง
+local list = Instance.new("UIListLayout")
+list.Parent = sc
+list.FillDirection = Enum.FillDirection.Vertical
+list.Padding = UDim.new(0,10)
+list.HorizontalAlignment = Enum.HorizontalAlignment.Stretch
+list.VerticalAlignment = Enum.VerticalAlignment.Top
+list.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- ถ้าเกม/สตูดิโอยังไม่รองรับ AutomaticCanvasSize → อัปเดต CanvasSize เอง
+local function updateCanvas()
+    local total = 0
+    for _,c in ipairs(sc:GetChildren()) do
+        if c:IsA("GuiObject") and c ~= pad and c ~= list then
+            total += c.AbsoluteSize.Y + list.Padding.Offset
         end
-    end)
-
-    -- เปิด UI มาให้เริ่มที่บนสุดเสมอ
-    local function jumpTop()
-        scroll.CanvasPosition = Vector2.new(0,0)
     end
-    jumpTop()
-    if mainGui and mainGui:IsA("ScreenGui") then
-        mainGui:GetPropertyChangedSignal("Enabled"):Connect(function()
-            if mainGui.Enabled then jumpTop() end
-        end)
-    end
-
-    -- เผื่อสลับหน้า/สร้างแถวใหม่ทีหลัง: เรียกฟังก์ชันนี้ให้เด้งไปบนสุด
-    _G.UFO_ScrollTop = jumpTop
+    total += 10 -- เผื่อขอบล่าง
+    sc.CanvasSize = UDim2.new(0,0,0,total)
 end
+list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    -- กันเปิดมาค้างล่าง → ตีกลับไปบนสุดทุกครั้งที่คอนเทนต์เปลี่ยน
+    sc.CanvasPosition = Vector2.new(0,0)
+    updateCanvas()
+end)
+
+----------------------------------------------------------------
+-- ย้ายของเก่าที่อยู่ใน content เข้ากรอบเลื่อนให้อัตโนมัติ
+-- (เช่น แถว AFK/Auto Collect/Auto Egg Hatch ฯลฯ)
+----------------------------------------------------------------
+local toMove = {}
+for _,ch in ipairs(content:GetChildren()) do
+    if ch ~= sc and ch:IsA("GuiObject") then
+        table.insert(toMove, ch)
+    end
+end
+for i,gui in ipairs(toMove) do
+    gui.Parent = sc
+    gui.LayoutOrder = i
+end
+
+-- อัปเดตครั้งแรก + บังคับอยู่บนสุด
+task.delay(0.05, function()
+    sc.CanvasPosition = Vector2.new(0,0)
+    updateCanvas()
+end)
 
 local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
     BackgroundTransparency=1, Visible=true}, {})
