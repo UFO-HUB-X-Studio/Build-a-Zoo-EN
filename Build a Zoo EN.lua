@@ -362,86 +362,82 @@ do
 end
 --========================================================
 --========================================================
--- 🟢LEFT ONLY: Auto neon border for sidebar buttons
--- - ทำกรอบสีเขียว "ยาวกว่าปุ่มนิดนึง" ทั้งซ้ายและขวา
--- - ใช้ได้กับปุ่มที่มีอยู่แล้ว และปุ่มที่ถูกสร้างใหม่ภายหลัง
--- - เพิ่มอย่างเดียว (ไม่แก้ข้อความ/สไตล์เดิมของปุ่ม)
+-- LEFT ONLY: Neon border auto-fit (longer than button a bit)
+-- - คำนวณระยะยื่นซ้าย/ขวาแบบไดนามิกจากพื้นที่ที่มีจริง
+-- - ใส่ให้ทุกปุ่มในซ้าย และปุ่มใหม่ที่จะถูกเพิ่มภายหลัง
+-- - เพิ่มอย่างเดียว ไม่แตะสไตล์/ข้อความเดิม
 --========================================================
 do
-    local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
-    local EXTRA_W = 12  -- ความยาวเพิ่ม (รวมสองข้าง) => ยื่นซ้าย/ขวาข้างละ 6px
-    local EXTRA_H =  8  -- สูงเพิ่มเล็กน้อย (บน/ล่าง รวมกัน 8px)
-    local RADIUS  = 12  -- มุมโค้งให้เหมือนภาพ
-    local THICK   = 2   -- ความหนาของกรอบ
+    local GREEN       = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local DESIRED_SIDE = 14   -- อยากให้ยื่น "แต่ละข้าง" ~14px (ยาวกว่ารูปอีกนิด)
+    local EXTRA_H      =  8   -- สูงกว่าปุ่มอีกนิดให้ดูเต็ม
+    local RADIUS       = 12
+    local THICK        = 2
 
-    local function ensureNeonBorder(btn: GuiObject)
+    local function fitBorderToSpace(btn, wrap)
+        -- พื้นที่ว่างซ้าย/ขวาที่ไม่โดน container บัง
+        local parent = btn.Parent
+        if not (parent and parent.AbsoluteSize) then return end
+        local leftSpace  = btn.AbsolutePosition.X - parent.AbsolutePosition.X
+        local rightSpace = (parent.AbsolutePosition.X + parent.AbsoluteSize.X) - (btn.AbsolutePosition.X + btn.AbsoluteSize.X)
+
+        -- กันชน 2px เพื่อไม่ให้ชนขอบ/มุม container
+        local safeL = math.max(0, math.floor(math.min(DESIRED_SIDE, leftSpace  - 2)))
+        local safeR = math.max(0, math.floor(math.min(DESIRED_SIDE, rightSpace - 2)))
+
+        -- ปรับขนาด/ตำแหน่งกรอบ (ยื่นซ้าย/ขวาไม่เท่าก็ได้)
+        wrap.Size     = UDim2.new(1, safeL + safeR, 1, EXTRA_H)
+        wrap.Position = UDim2.new(0.5, (safeR - safeL), 0.5, 0)
+    end
+
+    local function ensureNeonBorder(btn)
         if not (btn and btn:IsA("TextButton")) then return end
 
-        -- ให้ปุ่มสูงมาตรฐาน (ถ้าคุณตั้งไว้แล้วจะไม่เป็นไร)
-        if btn.Size.Y.Offset < 40 then
-            btn.Size = UDim2.new(1, 0, 0, 40)
-        end
-
-        -- สร้างกรอบเป็น "เฟรมหุ้ม" ที่ใหญ่กว่าปุ่มเล็กน้อย
         local wrap = btn:FindFirstChild("NeonBorder")
         if not wrap then
             wrap = Instance.new("Frame")
             wrap.Name = "NeonBorder"
             wrap.Parent = btn
-            wrap.AnchorPoint = Vector2.new(0.5, 0.5)
+            wrap.AnchorPoint = Vector2.new(0.5,0.5)
             wrap.BackgroundTransparency = 1
             wrap.BorderSizePixel = 0
-            wrap.ZIndex = math.max(0,(btn.ZIndex or 1) - 1)  -- วาง "หลัง" ปุ่ม เพื่อไม่บังการคลิก
-            -- ขยายให้ยาว/สูงกว่าปุ่มนิดนึง
-            wrap.Position = UDim2.new(0.5, 0, 0.5, 0)
-            wrap.Size = UDim2.new(1, EXTRA_W, 1, EXTRA_H)
+            wrap.ZIndex = math.max(0,(btn.ZIndex or 1)-1) -- วางหลังปุ่มเพื่อไม่บังการคลิก
 
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, RADIUS)
-            corner.Parent = wrap
+            local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0,RADIUS); corner.Parent = wrap
+            local stroke = Instance.new("UIStroke"); stroke.Color = GREEN; stroke.Thickness = THICK
+            stroke.Transparency = 0.10; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.LineJoinMode = Enum.LineJoinMode.Round; stroke.Parent = wrap
+        end
 
-            local stroke = Instance.new("UIStroke")
-            stroke.Color = GREEN
-            stroke.Thickness = THICK
-            stroke.Transparency = 0.10
-            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-            stroke.LineJoinMode = Enum.LineJoinMode.Round
-            stroke.Parent = wrap
-        else
-            -- อัปเดตขนาดเผื่อปุ่มถูกเปลี่ยน
-            wrap.Size = UDim2.new(1, EXTRA_W, 1, EXTRA_H)
+        -- เซ็ตครั้งแรก + ผูกอัปเดตอัตโนมัติเมื่อเลย์เอาต์เปลี่ยน
+        local function refresh() fitBorderToSpace(btn, wrap) end
+        refresh()
+        if not wrap:FindFirstChild("_AutoFitHook") then
+            local hook = Instance.new("Folder"); hook.Name = "_AutoFitHook"; hook.Parent = wrap
+            btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
+            btn:GetPropertyChangedSignal("AbsolutePosition"):Connect(refresh)
+            if btn.Parent then
+                btn.Parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
+                btn.Parent:GetPropertyChangedSignal("AbsolutePosition"):Connect(refresh)
+            end
         end
     end
 
-    -- ตัวช่วย: ทำให้ทุกปุ่มลูกของ container ได้กรอบอัตโนมัติ
-    local function styleAllButtons(container: Instance)
+    local function styleAllButtons(container)
         if not container then return end
-        for _,child in ipairs(container:GetChildren()) do
-            if child:IsA("TextButton") then
-                ensureNeonBorder(child)
-            end
+        for _,c in ipairs(container:GetChildren()) do
+            if c:IsA("TextButton") then ensureNeonBorder(c) end
         end
-        -- ปุ่มใหม่ในอนาคตจะถูกใส่กรอบให้อัตโนมัติ
         if not container:FindFirstChild("_NeonBorderHook") then
-            local hook = Instance.new("Folder")
-            hook.Name = "_NeonBorderHook"
-            hook.Parent = container
+            local hook = Instance.new("Folder"); hook.Name = "_NeonBorderHook"; hook.Parent = container
             container.ChildAdded:Connect(function(ch)
-                if ch:IsA("TextButton") then
-                    task.defer(function() ensureNeonBorder(ch) end)
-                end
+                if ch:IsA("TextButton") then task.defer(function() ensureNeonBorder(ch) end) end
             end)
         end
     end
 
-    -- ใช้กับฝั่งซ้ายเท่านั้น (ตามคำสั่ง "ด้านนี้ก่อน")
-    local leftScroll =
-        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList())
-        or (left and left:FindFirstChild("LeftScroll"))
-
-    if leftScroll then
-        styleAllButtons(leftScroll)
-    end
+    -- ใช้กับฝั่งซ้ายก่อน (อีกฝั่งค่อยทำแพตช์แยก)
+    local leftScroll = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or (left and left:FindFirstChild("LeftScroll"))
+    if leftScroll then styleAllButtons(leftScroll) end
 end
---======================== END LEFT NEON BORDER ==========================
-
+--====================== END LEFT AUTO-FIT BORDER =======================
