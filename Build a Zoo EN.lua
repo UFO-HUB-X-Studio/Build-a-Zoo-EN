@@ -323,22 +323,20 @@ btnMini:GetPropertyChangedSignal("Text"):Connect(function()
     setCollapsedUI(btnMini.Text == "▢")
 end)
 --========================================================
--- UFO HUB X — Sidebar  🏠 Home button (Full Width)
+-- UFO HUB X — Full Width 🏠 Home Button (across Main)
 --========================================================
 
--- ลบปุ่ม Home เก่าออกก่อน
-for _,c in ipairs(leftScroll:GetChildren()) do
-    if c:IsA("TextButton") and (c.Name=="Home" or c.Text=="หน้าหลัก") then
-        c:Destroy()
-    end
+-- ลบปุ่มเก่าออกก่อน
+if main:FindFirstChild("Home") then
+    main.Home:Destroy()
 end
 
--- ปุ่ม Sidebar 🏠 Home (เต็มแนวกว้าง)
+-- ปุ่ม 🏠 Home ยาวเต็มความกว้างของ main
 local btnHome = Instance.new("TextButton")
 btnHome.Name = "Home"
-btnHome.Parent = leftScroll
-btnHome.Size = UDim2.new(1,0,0,36)  -- ขยายเต็ม 100% ของพื้นที่ leftScroll
-btnHome.Position = UDim2.new(0,0,0,0)
+btnHome.Parent = main
+btnHome.Size = UDim2.new(1,-24,0,36)   -- เต็มกว้างทั้ง main (-24 เว้นขอบซ้าย/ขวาเล็กน้อย)
+btnHome.Position = UDim2.new(0,12,0,55) -- ใต้ Topbar 55px (พอดีแทน Sidebar เดิม)
 btnHome.BackgroundColor3 = SUB
 btnHome.Text = "🏠 Home"
 btnHome.TextColor3 = Color3.fromRGB(255,255,255)
@@ -346,6 +344,7 @@ btnHome.Font = Enum.Font.GothamBold
 btnHome.TextSize = 16
 btnHome.TextXAlignment = Enum.TextXAlignment.Left
 btnHome.AutoButtonColor = true
+btnHome.ZIndex = 5
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0,8)
@@ -357,25 +356,22 @@ stroke.Transparency = 0.85
 stroke.Parent = btnHome
 
 local pad = Instance.new("UIPadding")
-pad.PaddingLeft = UDim.new(0,10) -- ขยับข้อความเข้ามานิดนึง
+pad.PaddingLeft = UDim.new(0,10)
 pad.Parent = btnHome
 
--- ระบบเลือกปุ่ม
+-- ระบบเลือก (Highlight)
 local function setSidebarSelected(btn)
-    for _,c in ipairs(leftScroll:GetChildren()) do
-        if c:IsA("TextButton") then
-            c.BackgroundColor3 = SUB
-            c.TextColor3 = Color3.fromRGB(255,255,255)
-        end
-    end
+    btnHome.BackgroundColor3 = SUB
+    btnHome.TextColor3 = Color3.fromRGB(255,255,255)
     if btn then
         btn.BackgroundColor3 = Color3.fromRGB(26,26,26)
         btn.TextColor3 = ACCENT
     end
 end
 
--- ระบบสลับหน้า
+-- ระบบ Pages
 local Pages = { ["Home"] = pgHome }
+
 local function showPage(name)
     for n,frame in pairs(Pages) do
         if frame and frame.Parent then
@@ -387,6 +383,7 @@ local function showPage(name)
     end
 end
 
+-- Event
 btnHome.MouseButton1Click:Connect(function()
     showPage("Home")
     setSidebarSelected(btnHome)
