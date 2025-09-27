@@ -440,9 +440,13 @@ end
 
 local Library = _G.KavoCompat
 local Window  = Library.CreateLib("UFO HUB X")
-local Tab     = Window:NewTab("Main")
-local Sec     = Tab:NewSection("Menu")
 
-Sec:NewButton("👽 Home", nil, function()
-    print("Pressed Home")
+-- ปุ่ม Sidebar ฝั่งซ้าย
+local TabHome = Window:NewTab("👽 Home")
+
+-- Section ข้างใน TabHome
+local Sec     = TabHome:NewSection("เมนู")
+
+Sec:NewButton("เริ่มทำงาน", nil, function()
+    print("ทำงานแล้ว")
 end)
