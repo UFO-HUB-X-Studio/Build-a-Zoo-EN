@@ -323,72 +323,89 @@ btnMini:GetPropertyChangedSignal("Text"):Connect(function()
     setCollapsedUI(btnMini.Text == "▢")
 end)
 --========================================================
--- UFO HUB X — Full Width 🏠 Home Button (across Main)
+-- UFO HUB X — ONLY "🏠 Home" Sidebar + Page Switch (full width)
+-- * Plug-in snippet: paste into your main script *
 --========================================================
 
--- ลบปุ่มเก่าออกก่อน
-if main:FindFirstChild("Home") then
-    main.Home:Destroy()
+-- 1) Clean up old Home buttons to avoid duplicates
+for _,c in ipairs(leftScroll:GetChildren()) do
+    if c:IsA("TextButton") then
+        local txt = (c.Text or ""):lower()
+        local nm  = (c.Name or ""):lower()
+        if nm == "home" or txt:find("home") or txt:find("หน้าหลัก") then
+            c:Destroy()
+        end
+    end
 end
 
--- ปุ่ม 🏠 Home ยาวเต็มความกว้างของ main
+-- 2) Read leftScroll paddings so the button fits EXACTLY to the right edge
+local function _pxFromUDim(u)
+    if typeof(u) == "UDim" then
+        return math.floor(leftScroll.AbsoluteSize.X * (u.Scale or 0) + (u.Offset or 0))
+    end
+    return 0
+end
+
+local padObj = leftScroll:FindFirstChildOfClass("UIPadding")
+local PAD_L  = 0
+local PAD_R  = 0
+if padObj then
+    PAD_L = _pxFromUDim(padObj.PaddingLeft or UDim.new(0,0))
+    PAD_R = _pxFromUDim(padObj.PaddingRight or UDim.new(0,0))
+end
+
+-- 3) Create the Home button (width = 100% - (left+right padding))
 local btnHome = Instance.new("TextButton")
 btnHome.Name = "Home"
-btnHome.Parent = main
-btnHome.Size = UDim2.new(1,-24,0,36)   -- เต็มกว้างทั้ง main (-24 เว้นขอบซ้าย/ขวาเล็กน้อย)
-btnHome.Position = UDim2.new(0,12,0,55) -- ใต้ Topbar 55px (พอดีแทน Sidebar เดิม)
+btnHome.Parent = leftScroll
+btnHome.AutoButtonColor = true
 btnHome.BackgroundColor3 = SUB
 btnHome.Text = "🏠 Home"
 btnHome.TextColor3 = Color3.fromRGB(255,255,255)
 btnHome.Font = Enum.Font.GothamBold
 btnHome.TextSize = 16
 btnHome.TextXAlignment = Enum.TextXAlignment.Left
-btnHome.AutoButtonColor = true
-btnHome.ZIndex = 5
+btnHome.Size = UDim2.new(1, -(PAD_L + PAD_R), 0, 36) -- fill to the RIGHT edge exactly
+btnHome.Position = UDim2.new(0, PAD_L, 0, 0)         -- align with left padding
+btnHome.ZIndex = 3
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0,8)
-corner.Parent = btnHome
+local _corner = Instance.new("UICorner"); _corner.CornerRadius = UDim.new(0,8); _corner.Parent = btnHome
+local _stroke = Instance.new("UIStroke"); _stroke.Color = ACCENT; _stroke.Transparency = 0.85; _stroke.Parent = btnHome
+local _pad    = Instance.new("UIPadding"); _pad.PaddingLeft = UDim.new(0,10); _pad.Parent = btnHome -- inner text pad
 
-local stroke = Instance.new("UIStroke")
-stroke.Color = ACCENT
-stroke.Transparency = 0.85
-stroke.Parent = btnHome
-
-local pad = Instance.new("UIPadding")
-pad.PaddingLeft = UDim.new(0,10)
-pad.Parent = btnHome
-
--- ระบบเลือก (Highlight)
+-- 4) Sidebar highlight logic (single-button safe)
 local function setSidebarSelected(btn)
-    btnHome.BackgroundColor3 = SUB
-    btnHome.TextColor3 = Color3.fromRGB(255,255,255)
+    for _,c in ipairs(leftScroll:GetChildren()) do
+        if c:IsA("TextButton") then
+            c.BackgroundColor3 = SUB
+            c.TextColor3 = Color3.fromRGB(255,255,255)
+        end
+    end
     if btn then
         btn.BackgroundColor3 = Color3.fromRGB(26,26,26)
         btn.TextColor3 = ACCENT
     end
 end
 
--- ระบบ Pages
+-- 5) Page registry + switcher
 local Pages = { ["Home"] = pgHome }
 
 local function showPage(name)
-    for n,frame in pairs(Pages) do
+    for key,frame in pairs(Pages) do
         if frame and frame.Parent then
-            frame.Visible = (n == name)
+            frame.Visible = (key == name)
         end
     end
     if contentScroll then
-        contentScroll.CanvasPosition = Vector2.new(0,0)
+        contentScroll.CanvasPosition = Vector2.new(0,0) -- reset scroll to top
     end
 end
 
--- Event
+-- 6) Bind click and set defaults
 btnHome.MouseButton1Click:Connect(function()
     showPage("Home")
     setSidebarSelected(btnHome)
 end)
 
--- ค่าเริ่มต้น
 showPage("Home")
 setSidebarSelected(btnHome)
