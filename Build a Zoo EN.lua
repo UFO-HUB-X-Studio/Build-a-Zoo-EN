@@ -331,96 +331,122 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- ADD-ONLY: Guarantee Home Button + Header + Emoji
+-- PATCH: Home button fits UI + green border, Home header pinned top
 --========================================================
 do
-    -- ฟังก์ชันสร้าง Scroll ถ้าไม่มี (กันไว้ก่อน)
+    -- Ensure scrollers (เผื่อยังไม่มี)
     local function EnsureScroll(container, name)
         if not container then return nil end
         local sc = container:FindFirstChild(name)
-        if sc and sc:IsA("ScrollingFrame") then return sc end
-        sc = Instance.new("ScrollingFrame")
-        sc.Name = name
-        sc.Parent = container
-        sc.Size = UDim2.new(1, -20, 1, -20)
-        sc.Position = UDim2.new(0, 10, 0, 10)
-        sc.BackgroundTransparency = 1
-        sc.BorderSizePixel = 0
-        sc.ScrollBarThickness = 6
-        sc.ScrollBarImageColor3 = ACCENT
-        sc.ScrollingDirection = Enum.ScrollingDirection.Y
-        sc.CanvasSize = UDim2.fromOffset(0,0)
-        local uiList = Instance.new("UIListLayout", sc)
-        uiList.Padding = UDim.new(0,8)
-        uiList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            sc.CanvasSize = UDim2.fromOffset(0, uiList.AbsoluteContentSize.Y+20)
-        end)
+        if not (sc and sc:IsA("ScrollingFrame")) then
+            sc = Instance.new("ScrollingFrame")
+            sc.Name = name
+            sc.Parent = container
+            sc.BackgroundTransparency = 1
+            sc.BorderSizePixel = 0
+            sc.ClipsDescendants = true
+            sc.ScrollingDirection = Enum.ScrollingDirection.Y
+            sc.ScrollBarThickness = 6
+            sc.ScrollBarImageColor3 = ACCENT
+            sc.Size = UDim2.new(1, -20, 1, -20)
+            sc.Position = UDim2.new(0, 10, 0, 10)
+            local pad = Instance.new("UIPadding", sc)
+            pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight =
+                UDim.new(0,10), UDim.new(0,10), UDim.new(0,10), UDim.new(0,10)
+            local list = Instance.new("UIListLayout", sc)
+            list.Padding = UDim.new(0,8)
+            list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                sc.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
+            end)
+        end
         return sc
     end
 
-    -- ปุ่ม Home ฝั่งซ้าย
-    local function EnsureHomeButton(parent)
-        if not parent then return end
-        local btn = parent:FindFirstChild("Btn_Home")
-        if btn then return btn end
-        btn = Instance.new("TextButton")
-        btn.Name = "Btn_Home"
-        btn.Size = UDim2.new(1,0,0,36)
-        btn.BackgroundColor3 = Color3.fromRGB(0,0,0)
-        btn.Text = "🏠 Home"
+    -- Targets
+    local L = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or EnsureScroll(left,"LeftScroll")
+    local C = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or EnsureScroll(pgHome,"ContentScroll")
+
+    ----------------- 1) Left: Resize + Border -----------------
+    if L then
+        local btn = L:FindFirstChild("Btn_Home")
+        if not (btn and btn:IsA("TextButton")) then
+            btn = Instance.new("TextButton")
+            btn.Name = "Btn_Home"
+            btn.Parent = L
+        end
+        -- ขนาดพอดีกับช่อง (กว้างเต็มหลังหัก padding ของ Scroller)
+        btn.Size = UDim2.new(1, 0, 0, 40)              -- สูงขึ้นให้เต็มมือ
+        btn.BackgroundColor3 = Color3.fromRGB(0,0,0)   -- ปุ่มดำ
+        btn.AutoButtonColor = true
+        btn.Text = (btn.Text == "" and "Home" or btn.Text) -- ถ้ายังว่างให้ใส่ข้อความ
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 16
         btn.TextColor3 = Color3.new(1,1,1)
         btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Parent = parent
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
-        local stroke = Instance.new("UIStroke", btn)
+        btn.ZIndex = 10
+        btn.LayoutOrder = 1
+
+        -- มุมโค้ง + ขอบเขียว "หนา 2px" ให้เด่น
+        local cr = btn:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", btn)
+        cr.CornerRadius = UDim.new(0, 8)
+        local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", btn)
         stroke.Color = ACCENT
-        stroke.Transparency = 0.85
-        local pad = Instance.new("UIPadding", btn)
-        pad.PaddingLeft = UDim.new(0,12)
-        return btn
+        stroke.Thickness = 2
+        stroke.Transparency = 0.1
+
+        -- เว้นซ้าย-ขวาให้พอดีสายตา
+        local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
+        pad.PaddingLeft = UDim.new(0, 12)
+        pad.PaddingRight = UDim.new(0, 12)
+
+        -- ปรับเอฟเฟกต์ hover แบบเบา ๆ
+        btn.MouseEnter:Connect(function() TS:Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0.05}):Play() end)
+        btn.MouseLeave:Connect(function() TS:Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0}):Play() end)
     end
 
-    -- หัวข้อ Home ฝั่งขวา
-    local function EnsureHomeHeader(parent)
-        if not parent then return end
-        local wrap = parent:FindFirstChild("Header_Home")
-        if wrap then return wrap end
-        wrap = Instance.new("Frame")
-        wrap.Name = "Header_Home"
-        wrap.Size = UDim2.new(1,0,0,34)
-        wrap.BackgroundTransparency = 1
-        wrap.Parent = parent
+    ----------------- 2) Right: Pin header to top -----------------
+    if C then
+        local hdr = C:FindFirstChild("Header_Home")
+        if not (hdr and hdr:IsA("Frame")) then
+            hdr = Instance.new("Frame")
+            hdr.Name = "Header_Home"
+            hdr.Parent = C
+        end
+        hdr.BackgroundTransparency = 1
+        hdr.Position = UDim2.new(0, 0, 0, 0)   -- ชิดบน (จะถูกหัก padding ของ Scroller ให้เอง)
+        hdr.Size = UDim2.new(1, 0, 0, 32)
+        hdr.ZIndex = 10
+        hdr.LayoutOrder = 1
 
-        local title = Instance.new("TextLabel")
-        title.Name = "Title"
-        title.Parent = wrap
+        local title = hdr:FindFirstChild("Title")
+        if not (title and title:IsA("TextLabel")) then
+            title = Instance.new("TextLabel")
+            title.Name = "Title"
+            title.Parent = hdr
+        end
         title.BackgroundTransparency = 1
-        title.Size = UDim2.new(1,-4,1,-6)
-        title.Position = UDim2.new(0,2,0,0)
+        title.Text = (title.Text == "" and "Home" or title.Text)
         title.Font = Enum.Font.GothamBold
-        title.Text = "🏠 Home"
         title.TextSize = 18
-        title.TextXAlignment = Enum.TextXAlignment.Left
         title.TextColor3 = Color3.new(1,1,1)
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        -- เอาขึ้นชิดบนจริง ๆ (ไม่เว้นระยะส่วนเกิน)
+        title.Position = UDim2.new(0, 0, 0, 0)
+        title.Size = UDim2.new(1, 0, 1, -4)   -- เก็บระยะล่างไว้ 4px ให้เส้นใต้
 
-        local line = Instance.new("Frame")
-        line.Name = "Underline"
-        line.Parent = wrap
-        line.Size = UDim2.new(1,0,0,2)
-        line.Position = UDim2.new(0,0,1,-2)
+        local line = hdr:FindFirstChild("Underline")
+        if not (line and line:IsA("Frame")) then
+            line = Instance.new("Frame")
+            line.Name = "Underline"
+            line.Parent = hdr
+        end
+        line.BorderSizePixel = 0
         line.BackgroundColor3 = ACCENT
-        Instance.new("UIGradient", line)
-
-        return wrap
+        line.Size = UDim2.new(1, 0, 0, 2)
+        line.Position = UDim2.new(0, 0, 1, -2)  -- ชิดล่างของหัวข้อ
+        if not line:FindFirstChildOfClass("UIGradient") then
+            Instance.new("UIGradient", line)
+        end
     end
-
-    --=== Run: สร้างจริง ===
-    local leftScroll = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or EnsureScroll(left,"LeftScroll")
-    local contentScroll = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or EnsureScroll(pgHome,"ContentScroll")
-
-    EnsureHomeButton(leftScroll)
-    EnsureHomeHeader(contentScroll)
 end
 --========================================================
