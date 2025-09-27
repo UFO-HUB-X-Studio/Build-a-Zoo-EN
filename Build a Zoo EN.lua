@@ -1,5 +1,5 @@
 --========================================================
--- UFO HUB X — FULL (with Sidebar & Content Scrolling)
+-- UFO HUB X — FULL (now with Home button + AFK switch)
 --========================================================
 
 -------------------- Services --------------------
@@ -22,7 +22,7 @@ local CENTER_TIME  = 0.25
 local TOGGLE_DOCKED = true            -- เริ่มแบบเกาะซ้าย
 
 -- AFK
-local INTERVAL_SEC = 5*60             -- วนคลิกทุก 5 นาที
+local INTERVAL_SEC = 5*60             -- กี่วินาทีต่อหนึ่งครั้งคลิก (5 นาที)
 
 -------------------- Helpers --------------------
 local function safeParent(gui)
@@ -112,128 +112,21 @@ local function mkX(rot)
 end
 mkX(45); mkX(-45)
 
-----------------------------------------------------------------
--- Sidebar (LEFT)  >>> แปลงเป็น ScrollingFrame
-----------------------------------------------------------------
-local left = make("Frame", {
-    Parent=main, Size=UDim2.new(0,170,1,-60), Position=UDim2.new(0,12,0,55),
-    BackgroundColor3=Color3.fromRGB(18,18,18)
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,12)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.85})
-})
+-- Sidebar ------------------------------------------------
+local left = make("Frame", {Parent=main, Size=UDim2.new(0,170,1,-60), Position=UDim2.new(0,12,0,55),
+    BackgroundColor3=Color3.fromRGB(18,18,18)},
+    {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.85})})
+make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
 
--- พื้นที่เลื่อนด้านใน (คงหน้าตาเดิม แต่เลื่อนในกรอบนี้)
-local leftScroll = make("ScrollingFrame", {
-    Name="LeftScroll", Parent=left, BackgroundTransparency=1, BorderSizePixel=0,
-    Size=UDim2.new(1,-12,1,-12), Position=UDim2.new(0,6,0,6),
-    ScrollBarThickness=6, AutomaticCanvasSize=Enum.AutomaticSize.Y,
-    CanvasSize=UDim2.new(0,0,0,0), ScrollingDirection=Enum.ScrollingDirection.Y,
-    ScrollBarImageTransparency=0.1, ScrollBarImageColor3=ACCENT, ClipsDescendants=true
-},{})
-make("UIListLayout",{Parent=leftScroll, Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
-make("UIPadding",{Parent=leftScroll, PaddingLeft=UDim.new(0,2), PaddingRight=UDim.new(0,2), PaddingTop=UDim.new(0,2), PaddingBottom=UDim.new(0,2)})
+-- Content ------------------------------------------------
+local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
+    BackgroundColor3=D_GREY},
+    {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
 
-local function mkLeftButton(text)
-    local btn = make("TextButton",{
-        Parent=leftScroll, AutoButtonColor=false,
-        Size=UDim2.new(1, -8, 0, 38), BackgroundColor3=SUB,
-        Font=Enum.Font.GothamBold, TextSize=15, TextColor3=FG, Text="   "..text
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0})
-    })
-    return btn
-end
+local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
+    BackgroundTransparency=1, Visible=true}, {})
 
-----------------------------------------------------------------
--- Content (RIGHT)  >>> แปลงเป็น ScrollingFrame
-----------------------------------------------------------------
-local content = make("Frame", {
-    Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
-    BackgroundColor3=D_GREY
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,12)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.8})
-})
-
--- ขอบใน + พื้นที่เลื่อน
-local contentScroll = make("ScrollingFrame",{
-    Name="ContentScroll", Parent=content, BackgroundTransparency=1, BorderSizePixel=0,
-    Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
-    ScrollBarThickness=8, AutomaticCanvasSize=Enum.AutomaticSize.Y,
-    CanvasSize=UDim2.new(0,0,0,0), ScrollingDirection=Enum.ScrollingDirection.Y,
-    ScrollBarImageTransparency=0.1, ScrollBarImageColor3=ACCENT, ClipsDescendants=true
-},{})
-make("UIListLayout",{Parent=contentScroll, Padding=UDim.new(0,10), SortOrder=Enum.SortOrder.LayoutOrder})
-
--- แถวสวิตช์สไตล์เดิม
-local function mkSwitchRow(labelText, stateDefault)
-    local row = make("Frame",{
-        Parent=contentScroll, BackgroundColor3=SUB, Size=UDim2.new(1,0,0,48)
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0})
-    })
-    make("TextLabel",{
-        Parent=row, BackgroundTransparency=1, Position=UDim2.new(0,12,0,0),
-        Size=UDim2.new(1,-90,1,0), Text=labelText, TextColor3=FG, Font=Enum.Font.GothamBold, TextSize=16,
-        TextXAlignment=Enum.TextXAlignment.Left
-    },{})
-
-    local dot = make("Frame",{
-        Parent=row, AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-16,0.5,0),
-        Size=UDim2.new(0,22,0,22), BackgroundColor3=(stateDefault and ACCENT or OFFCOL)
-    },{
-        make("UICorner",{CornerRadius=UDim.new(1,0)}),
-        make("UIStroke",{Color=Color3.fromRGB(0,0,0), Transparency=0.6})
-    })
-
-    local btn = make("TextButton",{
-        Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,0,1,0), Text=""
-    },{})
-    local state = stateDefault
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        TS:Create(dot, TweenInfo.new(.12), {BackgroundColor3 = state and ACCENT or OFFCOL}):Play()
-    end)
-    return row
-end
-
-----------------------------------------------------------------
--- หน้า Home (ตัวอย่างตามรูป: AFK/Auto Collect/Auto Egg Hatch)
-----------------------------------------------------------------
-local btnHome   = mkLeftButton("Home")
-local btnShop   = mkLeftButton("Shop")
-local btnFish   = mkLeftButton("Fishing")
-
--- หน้าคอนเทนต์ใช้การสลับ Visible ผ่านกลุ่ม (รองรับเพิ่มหน้าในอนาคต)
-local pages = {}
-local function newPage(name)
-    local page = make("Frame",{
-        Parent=contentScroll, Size=UDim2.new(1,0,0,0), BackgroundTransparency=1
-    },{})
-    table.insert(pages, page)
-    return page
-end
-
--- โครงสร้างหน้า Home
-local pageHome = newPage("Home")
--- เติมแถวสวิตช์ลงใน pageHome ผ่าน container เฉพาะของมัน
-local pageHomeList = make("Frame",{
-    Parent=pageHome, Size=UDim2.new(1,0,0,0), BackgroundTransparency=1
-},{})
-make("UIListLayout",{Parent=pageHomeList, Padding=UDim.new(0,10)})
-
-mkSwitchRow("AFK (OFF)", false)
-mkSwitchRow("Auto Collect Money (OFF)", false)
-mkSwitchRow("Auto Egg Hatch (OFF)", false)
-
--- (ถ้าต้องการหน้าถัดไป สามารถสร้างด้วย newPage() แล้วเติมแถวได้เลย)
-
-----------------------------------------------------------------
--- Toggle Button (dock + drag)
-----------------------------------------------------------------
+-------------------- Toggle Button (dock + drag) --------------------
 local btnToggle = make("ImageButton", {
     Parent=toggleGui, Size=UDim2.new(0,64,0,64),
     BackgroundColor3=SUB, AutoButtonColor=false, ClipsDescendants=true,
@@ -310,4 +203,122 @@ UIS.InputBegan:Connect(function(i,gp)
         TOGGLE_DOCKED = not TOGGLE_DOCKED
         if TOGGLE_DOCKED then dockToggleToMain() end
     end
+end)
+--========================================================
+-- [PATCH] Scroll system for LEFT (Sidebar) and RIGHT (Content)
+-- *ไม่ลบของเดิม* — แค่เพิ่ม ScrollingFrame แล้วชี้ Parent ใหม่ให้ใช้งาน
+--========================================================
+
+-- LEFT: make a scrolling container inside `left`
+local leftScroll = make("ScrollingFrame", {
+    Parent = left,
+    Name = "LeftScroll",
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Size = UDim2.new(1,-10, 1,-10),
+    Position = UDim2.new(0,5, 0,5),
+    ScrollBarThickness = 4,
+    ScrollBarImageTransparency = 0.15,
+    ScrollBarImageColor3 = ACCENT,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y, -- ปรับความยาว canvas อัตโนมัติ
+    CanvasSize = UDim2.new(0,0, 0,0),
+    ClipsDescendants = true
+}, {
+    make("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,6), PaddingRight=UDim.new(0,6), PaddingBottom=UDim.new(0,6)}),
+    make("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+        Padding = UDim.new(0,8),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+})
+
+-- NOTE: เดิมเราเคยสร้าง UIListLayout ใส่ไว้ใน `left` แล้ว
+-- เรา "ไม่ลบ" แต่จากนี้เวลาเพิ่มปุ่มเมนู/รายการ ให้ Parent = leftScroll แทน
+-- ตัวอย่างฟังก์ชันช่วยสร้างปุ่มลง Sidebar แล้วใส่ใน leftScroll:
+local function AddSidebarItem(text)
+    local b = make("TextButton", {
+        Parent = leftScroll,
+        Size = UDim2.new(1,0, 0,36),
+        AutoButtonColor = true,
+        BackgroundColor3 = SUB,
+        Text = text,
+        TextColor3 = FG,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16
+    }, {
+        make("UICorner", {CornerRadius = UDim.new(0,8)}),
+        make("UIStroke", {Color = ACCENT, Transparency = 0.85})
+    })
+    return b
+end
+-- ตัวอย่าง (คอมเมนต์ไว้ก่อน): -- AddSidebarItem("Home")
+
+-- RIGHT: scrolling container inside `content`
+local contentScroll = make("ScrollingFrame", {
+    Parent = content,
+    Name = "ContentScroll",
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Size = UDim2.new(1,-10, 1,-10),
+    Position = UDim2.new(0,5, 0,5),
+    ScrollBarThickness = 5,
+    ScrollBarImageTransparency = 0.15,
+    ScrollBarImageColor3 = ACCENT,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    CanvasSize = UDim2.new(0,0, 0,0),
+    ClipsDescendants = true
+}, {
+    make("UIPadding", {PaddingTop=UDim.new(0,10), PaddingLeft=UDim.new(0,10), PaddingRight=UDim.new(0,10), PaddingBottom=UDim.new(0,10)}),
+    make("UIListLayout", {
+        FillDirection = Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+        Padding = UDim.new(0,10),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+})
+
+-- ย้ายหน้าเริ่มต้น `pgHome` ไปโชว์ในพื้นที่เลื่อนของฝั่งขวา (ไม่ลบของเดิม แค่เปลี่ยน Parent)
+pgHome.Parent = contentScroll
+
+-- ฟังก์ชันช่วย: เพิ่มเซกชัน/การ์ดในฝั่งขวา (วางเป็นตัวอย่าง)
+local function AddContentSection(title, height)
+    local card = make("Frame", {
+        Parent = contentScroll,
+        BackgroundColor3 = Color3.fromRGB(20,20,20),
+        Size = UDim2.new(1,0, 0, height or 140)
+    }, {
+        make("UICorner", {CornerRadius = UDim.new(0,10)}),
+        make("UIStroke", {Color = ACCENT, Transparency = 0.82})
+    })
+    make("TextLabel", {
+        Parent = card,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0,12, 0,10),
+        Size = UDim2.new(1,-24, 0,24),
+        Text = title or "Section",
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        TextColor3 = FG,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, {})
+
+    return card
+end
+-- ตัวอย่าง (คอมเมนต์ไว้): -- AddContentSection("Welcome", 160)
+
+-- ปรับการสลับย่อ/ขยาย ให้ซ่อนเฉพาะเนื้อหาด้านใน (scroll containers) ตามสถานะเดิม
+collapsed = collapsed or false
+local function setCollapsedUI(isCollapsed)
+    if isCollapsed then
+        left.Visible=false; content.Visible=false; underline.Visible=false
+    else
+        left.Visible=true; content.Visible=true; underline.Visible=true
+    end
+end
+-- ผูกกับปุ่มเดิมโดยไม่แก้บรรทัดเก่า (แค่เสริม listener เผื่อมีการเปลี่ยนสถานะจากที่อื่น)
+btnMini:GetPropertyChangedSignal("Text"):Connect(function()
+    setCollapsedUI(btnMini.Text == "▢")
 end)
