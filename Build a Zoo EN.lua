@@ -331,68 +331,96 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- ADD-ONLY: Emoji for Home (Left Button + Right Header)
--- - เพิ่มอย่างเดียว ไม่แก้ของเดิม
--- - วางอีโมจิให้อยู่ "ก่อนคำว่า Home" แบบพอดี
+-- ADD-ONLY: Guarantee Home Button + Header + Emoji
 --========================================================
 do
-    local function addEmojiToButton(btn, emoji, xOffset, sizePx)
-        if not (btn and btn:IsA("TextButton")) then return end
-        if btn:FindFirstChild("EmojiIcon") then return end -- กันซ้ำ
-
-        -- อีโมจิเป็น TextLabel โปร่งใส ซ้อนด้านซ้าย
-        make("TextLabel", {
-            Name = "EmojiIcon",
-            Parent = btn,
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Size = UDim2.new(0, sizePx, 0, sizePx),
-            Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2)),
-            Font = Enum.Font.GothamBold,
-            Text = emoji,
-            TextSize = sizePx,          -- ให้สเกลตาม px เพื่อความเป๊ะ
-            TextColor3 = Color3.fromRGB(255,255,255),
-            ZIndex = (btn.ZIndex or 1) + 1,
-        },{})
+    -- ฟังก์ชันสร้าง Scroll ถ้าไม่มี (กันไว้ก่อน)
+    local function EnsureScroll(container, name)
+        if not container then return nil end
+        local sc = container:FindFirstChild(name)
+        if sc and sc:IsA("ScrollingFrame") then return sc end
+        sc = Instance.new("ScrollingFrame")
+        sc.Name = name
+        sc.Parent = container
+        sc.Size = UDim2.new(1, -20, 1, -20)
+        sc.Position = UDim2.new(0, 10, 0, 10)
+        sc.BackgroundTransparency = 1
+        sc.BorderSizePixel = 0
+        sc.ScrollBarThickness = 6
+        sc.ScrollBarImageColor3 = ACCENT
+        sc.ScrollingDirection = Enum.ScrollingDirection.Y
+        sc.CanvasSize = UDim2.fromOffset(0,0)
+        local uiList = Instance.new("UIListLayout", sc)
+        uiList.Padding = UDim.new(0,8)
+        uiList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            sc.CanvasSize = UDim2.fromOffset(0, uiList.AbsoluteContentSize.Y+20)
+        end)
+        return sc
     end
 
-    local function addEmojiToHeader(headerFrame, emoji, xOffset, sizePx)
-        if not (headerFrame and headerFrame:IsA("Frame")) then return end
-        if headerFrame:FindFirstChild("EmojiIcon") then return end -- กันซ้ำ
-
-        make("TextLabel", {
-            Name = "EmojiIcon",
-            Parent = headerFrame,
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Size = UDim2.new(0, sizePx, 0, sizePx),
-            Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2)),
-            Font = Enum.Font.GothamBold,
-            Text = emoji,
-            TextSize = sizePx,
-            TextColor3 = Color3.fromRGB(255,255,255),
-            ZIndex = (headerFrame.ZIndex or 1) + 1,
-        },{})
+    -- ปุ่ม Home ฝั่งซ้าย
+    local function EnsureHomeButton(parent)
+        if not parent then return end
+        local btn = parent:FindFirstChild("Btn_Home")
+        if btn then return btn end
+        btn = Instance.new("TextButton")
+        btn.Name = "Btn_Home"
+        btn.Size = UDim2.new(1,0,0,36)
+        btn.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        btn.Text = "🏠 Home"
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = parent
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+        local stroke = Instance.new("UIStroke", btn)
+        stroke.Color = ACCENT
+        stroke.Transparency = 0.85
+        local pad = Instance.new("UIPadding", btn)
+        pad.PaddingLeft = UDim.new(0,12)
+        return btn
     end
 
-    -- ค้นหาปุ่ม/หัวข้อเป้าหมายจากที่สร้างไว้ก่อนหน้า
-    local L = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or (left and left:FindFirstChild("LeftScroll"))
-    local C = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or (pgHome and pgHome:FindFirstChild("ContentScroll"))
+    -- หัวข้อ Home ฝั่งขวา
+    local function EnsureHomeHeader(parent)
+        if not parent then return end
+        local wrap = parent:FindFirstChild("Header_Home")
+        if wrap then return wrap end
+        wrap = Instance.new("Frame")
+        wrap.Name = "Header_Home"
+        wrap.Size = UDim2.new(1,0,0,34)
+        wrap.BackgroundTransparency = 1
+        wrap.Parent = parent
 
-    -- ปุ่มซ้าย: Btn_Home
-    if L then
-        local btnHome = L:FindFirstChild("Btn_Home")
-        -- วางอีโมจิ 🏠 ทางซ้าย ขนาด 18px ขยับจากขอบซ้าย 6px (พอดีกับ padding ปุ่ม 12px)
-        addEmojiToButton(btnHome, "🏠", 6, 18)
+        local title = Instance.new("TextLabel")
+        title.Name = "Title"
+        title.Parent = wrap
+        title.BackgroundTransparency = 1
+        title.Size = UDim2.new(1,-4,1,-6)
+        title.Position = UDim2.new(0,2,0,0)
+        title.Font = Enum.Font.GothamBold
+        title.Text = "🏠 Home"
+        title.TextSize = 18
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.TextColor3 = Color3.new(1,1,1)
+
+        local line = Instance.new("Frame")
+        line.Name = "Underline"
+        line.Parent = wrap
+        line.Size = UDim2.new(1,0,0,2)
+        line.Position = UDim2.new(0,0,1,-2)
+        line.BackgroundColor3 = ACCENT
+        Instance.new("UIGradient", line)
+
+        return wrap
     end
 
-    -- หัวข้อขวา: Header_Home
-    if C then
-        local hdr = C:FindFirstChild("Header_Home")
-        -- วางอีโมจิ 🏠 ทางซ้าย ขนาด 18px ขยับ 0→ให้ชิดซ้ายพอดีกับเส้นใต้
-        addEmojiToHeader(hdr, "🏠", 0, 18)
-    end
+    --=== Run: สร้างจริง ===
+    local leftScroll = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or EnsureScroll(left,"LeftScroll")
+    local contentScroll = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or EnsureScroll(pgHome,"ContentScroll")
+
+    EnsureHomeButton(leftScroll)
+    EnsureHomeHeader(contentScroll)
 end
---========================================================
--- END ADD-ONLY: Emoji for Home
 --========================================================
