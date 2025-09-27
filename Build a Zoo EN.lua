@@ -331,93 +331,187 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- PATCH: Btn_Home green border + emoji fallback, Header_Home emoji fallback
+-- FORCE-ADD: Home Button (left) + Home Header (right) + Emoji Fallback
+-- * เพิ่มอย่างเดียว ไม่แก้อะไรของเดิม *
 --========================================================
 do
-    local function EnsureEmoji(target, text, fallbackAssetId, xOffset, sizePx)
-        if not target then return end
+    -- สีเขียวธีม (ใช้ ACCENT เดิม ถ้ามี)
+    local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
 
-        -- Text emoji
-        local lbl = target:FindFirstChild("EmojiIcon")
+    ----------------------------------------------------------------------
+    -- Utilities (ไม่พึ่ง make เพื่อความชัวร์)
+    local function ensureScroller(container, name)
+        if not container then return nil end
+        local sc = container:FindFirstChild(name)
+        if not (sc and sc:IsA("ScrollingFrame")) then
+            sc = Instance.new("ScrollingFrame")
+            sc.Name = name
+            sc.Parent = container
+            sc.BackgroundTransparency = 1
+            sc.BorderSizePixel = 0
+            sc.ClipsDescendants = true
+            sc.ScrollingDirection = Enum.ScrollingDirection.Y
+            sc.ScrollBarThickness = 6
+            sc.ScrollBarImageTransparency = 0
+            sc.ScrollBarImageColor3 = GREEN
+            sc.AutomaticCanvasSize = Enum.AutomaticSize.None
+            sc.Size = UDim2.new(1, -20, 1, -20)   -- เว้น padding รวม 10px รอบด้าน
+            sc.Position = UDim2.new(0, 10, 0, 10)
+
+            local pad = Instance.new("UIPadding", sc)
+            pad.PaddingTop    = UDim.new(0,10)
+            pad.PaddingBottom = UDim.new(0,10)
+            pad.PaddingLeft   = UDim.new(0,10)
+            pad.PaddingRight  = UDim.new(0,10)
+
+            local list = Instance.new("UIListLayout", sc)
+            list.Padding = UDim.new(0,8)
+            list.FillDirection = Enum.FillDirection.Vertical
+            list.SortOrder = Enum.SortOrder.LayoutOrder
+            list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                sc.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
+            end)
+        end
+        return sc
+    end
+
+    local function ensureEmoji(targetGui, emojiText, assetId, xOffset, sizePx)
+        if not (targetGui and targetGui:IsA("GuiObject")) then return end
+        -- ลอง Text emoji ก่อน
+        local lbl = targetGui:FindFirstChild("EmojiIcon")
         if not lbl then
             lbl = Instance.new("TextLabel")
             lbl.Name = "EmojiIcon"
-            lbl.Parent = target
+            lbl.Parent = targetGui
             lbl.BackgroundTransparency = 1
-            lbl.Size = UDim2.new(0, sizePx, 0, sizePx)
+            lbl.BorderSizePixel = 0
+            lbl.Size = UDim2.fromOffset(sizePx, sizePx)
             lbl.Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2))
             lbl.Font = Enum.Font.GothamBold
-            lbl.Text = text
+            lbl.Text = emojiText
             lbl.TextSize = sizePx
             lbl.TextColor3 = Color3.new(1,1,1)
-            lbl.ZIndex = (target.ZIndex or 1) + 1
+            lbl.ZIndex = (targetGui.ZIndex or 1) + 1
         end
-
-        -- fallback check
+        -- ถ้าไม่เรนเดอร์ → ใช้รูปแทน
         task.defer(function()
             if lbl and (lbl.TextBounds.X < 1 or lbl.TextBounds.Y < 1) then
                 lbl.Visible = false
-                if not target:FindFirstChild("EmojiImage") then
+                if not targetGui:FindFirstChild("EmojiImage") then
                     local img = Instance.new("ImageLabel")
                     img.Name = "EmojiImage"
-                    img.Parent = target
+                    img.Parent = targetGui
                     img.BackgroundTransparency = 1
-                    img.Size = UDim2.new(0, sizePx, 0, sizePx)
+                    img.Size = UDim2.fromOffset(sizePx, sizePx)
                     img.Position = UDim2.new(0, xOffset, 0.5, -math.floor(sizePx/2))
-                    img.Image = "rbxassetid://"..tostring(fallbackAssetId)
+                    img.Image = "rbxassetid://"..tostring(LOGO_ID or 112676905543996)
                     img.ScaleType = Enum.ScaleType.Fit
-                    img.ZIndex = (target.ZIndex or 1) + 1
+                    img.ZIndex = (targetGui.ZIndex or 1) + 1
                 end
             end
         end)
     end
 
-    -- ฝั่งซ้าย: Btn_Home
-    local L = (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or (left and left:FindFirstChild("LeftScroll"))
-    if L then
-        local btn = L:FindFirstChild("Btn_Home")
-        if btn and btn:IsA("TextButton") then
-            btn.Size = UDim2.new(1, 0, 0, 40)
-            btn.BackgroundColor3 = Color3.fromRGB(0,0,0)
-            btn.Text = "Home"
-            btn.TextColor3 = Color3.new(1,1,1)
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 16
-            btn.TextXAlignment = Enum.TextXAlignment.Left
+    ----------------------------------------------------------------------
+    -- Ensure left/right scrollers
+    local leftScroll =
+        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList())
+        or (left and left:FindFirstChild("LeftScroll"))
+        or (left and ensureScroller(left, "LeftScroll"))
 
-            -- ขอบเขียว
-            local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", btn)
-            stroke.Parent = btn
-            stroke.Color = ACCENT
-            stroke.Thickness = 2
-            stroke.Transparency = 0.1
+    local contentScroll =
+        (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea())
+        or (pgHome and pgHome:FindFirstChild("ContentScroll"))
+        or (pgHome and ensureScroller(pgHome, "ContentScroll"))
 
-            -- padding
-            local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
-            pad.PaddingLeft = UDim.new(0, 28) -- เว้นไว้ให้ emoji
-
-            -- emoji 🏠
-            EnsureEmoji(btn, "🏠", LOGO_ID, 6, 18)
+    ----------------------------------------------------------------------
+    -- LEFT: Ensure Btn_Home (ปุ่มดำ/ตัวอักษรขาว + ขอบเขียว 2px)
+    if leftScroll then
+        local btn = leftScroll:FindFirstChild("Btn_Home")
+        if not (btn and btn:IsA("TextButton")) then
+            btn = Instance.new("TextButton")
+            btn.Name = "Btn_Home"
+            btn.Parent = leftScroll
         end
+        btn.AutoButtonColor = true
+        btn.Size = UDim2.new(1, 0, 0, 40)                -- สูง 40 พอดีจับถนัด
+        btn.BackgroundColor3 = Color3.fromRGB(0,0,0)     -- ปุ่มสีดำ
+        btn.Text = "Home"                                 -- ข้อความ (อีโมจิจะวางเป็นเลเยอร์แยก)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.LayoutOrder = 1
+
+        local corner = btn:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", btn)
+        corner.CornerRadius = UDim.new(0, 8)
+
+        local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", btn)
+        stroke.Color = GREEN
+        stroke.Thickness = 2
+        stroke.Transparency = 0.1
+
+        local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
+        pad.PaddingLeft  = UDim.new(0, 28)   -- เผื่อพื้นที่อีโมจิ
+        pad.PaddingRight = UDim.new(0, 12)
+
+        -- อีโมจิซ้ายมือ
+        ensureEmoji(btn, "🏠", LOGO_ID, 6, 18)
     end
 
-    -- ฝั่งขวา: Header_Home
-    local C = (_G.UFOHubX_GetContentArea and _G.UFOHubX_GetContentArea()) or (pgHome and pgHome:FindFirstChild("ContentScroll"))
-    if C then
-        local hdr = C:FindFirstChild("Header_Home")
-        if hdr and hdr:IsA("Frame") then
-            local title = hdr:FindFirstChild("Title")
-            if title and title:IsA("TextLabel") then
-                title.Text = "Home"
-                title.Font = Enum.Font.GothamBold
-                title.TextSize = 18
-                title.TextColor3 = Color3.new(1,1,1)
-                title.TextXAlignment = Enum.TextXAlignment.Left
-                title.Position = UDim2.new(0, 28, 0, 0) -- ขยับขวา เว้นให้ emoji
-                -- emoji 🏠
-                EnsureEmoji(hdr, "🏠", LOGO_ID, 0, 18)
-            end
+    ----------------------------------------------------------------------
+    -- RIGHT: Ensure Header_Home (ชื่อขาว + เส้นใต้เขียว + อีโมจิ)
+    if contentScroll then
+        local header = contentScroll:FindFirstChild("Header_Home")
+        if not (header and header:IsA("Frame")) then
+            header = Instance.new("Frame")
+            header.Name = "Header_Home"
+            header.Parent = contentScroll
         end
+        header.BackgroundTransparency = 1
+        header.Size = UDim2.new(1, 0, 0, 32)
+        header.Position = UDim2.new(0, 0, 0, 0)
+        header.LayoutOrder = 1
+        header.ZIndex = 10
+
+        -- emoji จะอยู่ใน frame header เอง / ชื่อเลื่อนไปขวา 28px
+        local title = header:FindFirstChild("Title")
+        if not (title and title:IsA("TextLabel")) then
+            title = Instance.new("TextLabel")
+            title.Name = "Title"
+            title.Parent = header
+        end
+        title.BackgroundTransparency = 1
+        title.Text = "Home"
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 18
+        title.TextColor3 = Color3.new(1,1,1)
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Size = UDim2.new(1, -28, 1, -4)   -- เผื่อเส้นใต้ 2px + margin
+        title.Position = UDim2.new(0, 28, 0, 0)
+
+        local line = header:FindFirstChild("Underline")
+        if not (line and line:IsA("Frame")) then
+            line = Instance.new("Frame")
+            line.Name = "Underline"
+            line.Parent = header
+        end
+        line.BorderSizePixel = 0
+        line.BackgroundColor3 = GREEN
+        line.Size = UDim2.new(1, 0, 0, 2)
+        line.Position = UDim2.new(0, 0, 1, -2)
+        if not line:FindFirstChildOfClass("UIGradient") then
+            local g = Instance.new("UIGradient")
+            g.Transparency = NumberSequence.new{
+                NumberSequenceKeypoint.new(0,0.55),
+                NumberSequenceKeypoint.new(0.5,0.0),
+                NumberSequenceKeypoint.new(1,0.55)
+            }
+            g.Parent = line
+        end
+
+        -- อีโมจิซ้ายของหัวข้อ (ใช้ fallback ถ้าไม่เรนเดอร์)
+        ensureEmoji(header, "🏠", LOGO_ID, 4, 18)
     end
 end
---========================================================
+--============================== END FORCE-ADD ===========================
