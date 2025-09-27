@@ -122,6 +122,56 @@ make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
 local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
     BackgroundColor3=D_GREY},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
+----------------------------------------------------------------
+-- 📜 UPGRADE: ทำให้พื้นที่ "content" เลื่อนขึ้น-ลงได้ (drop-in)
+-- วาง "ต่อจาก" บรรทัดที่สร้าง content แล้ว
+----------------------------------------------------------------
+do
+    if not content:FindFirstChild("UFOX_Body") then
+        -- 1) สร้าง ScrollingFrame ด้านใน content
+        local body = Instance.new("ScrollingFrame")
+        body.Name = "UFOX_Body"
+        body.Parent = content
+        body.BackgroundTransparency = 1
+        body.BorderSizePixel = 0
+        body.Position = UDim2.new(0, 10, 0, 10)      -- margin ใน 10px
+        body.Size     = UDim2.new(1, -20, 1, -20)    -- เว้นขอบรอบ
+        body.CanvasSize = UDim2.new(0,0,0,0)
+        body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        body.ScrollBarThickness = 6
+        body.ScrollBarImageColor3 = ACCENT
+
+        -- จัดเรียงแนวตั้ง + ระยะห่าง
+        local list = Instance.new("UIListLayout", body)
+        list.FillDirection = Enum.FillDirection.Vertical
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Padding = UDim.new(0, 8)
+
+        -- padding ภายใน (ปรับได้ตามต้องการ)
+        local pad = Instance.new("UIPadding", body)
+        pad.PaddingTop    = UDim.new(0, 0)
+        pad.PaddingBottom = UDim.new(0, 0)
+        pad.PaddingLeft   = UDim.new(0, 0)
+        pad.PaddingRight  = UDim.new(0, 0)
+
+        -- 2) ย้ายลูกเดิมของ content เข้า body (ยกเว้นส่วนตกแต่งตัว content)
+        for _,ch in ipairs(content:GetChildren()) do
+            if ch ~= body and ch:IsA("GuiObject") and not ch:IsA("UIStroke") and not ch:IsA("UICorner") then
+                ch.Parent = body
+            end
+        end
+
+        -- 3) อนาคตถ้ามีของใหม่ถูกใส่ใน content → ย้ายเข้า body อัตโนมัติ
+        content.ChildAdded:Connect(function(ch)
+            if ch ~= body and ch:IsA("GuiObject") and not ch:IsA("UIStroke") and not ch:IsA("UICorner") then
+                ch.Parent = body
+            end
+        end)
+
+        -- 4) เผื่อสคริปต์อื่นอยากอ้างอิงพื้นที่เลื่อนได้โดยตรง
+        _G.UFOX_GetContentBody = function() return body end
+    end
+end
 
 local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
     BackgroundTransparency=1, Visible=true}, {})
