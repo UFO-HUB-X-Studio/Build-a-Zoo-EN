@@ -53,20 +53,10 @@ local OFFCOL = Color3.fromRGB(210,60,60)
 local mainGui   = make("ScreenGui", {Name="UFOHubX_Main", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, {})
 local toggleGui = make("ScreenGui", {Name="UFOHubX_Toggle", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling}, {})
 safeParent(mainGui); safeParent(toggleGui)
-
 -------------------- MAIN WINDOW --------------------
-local MARGIN_X = 20   -- เว้นซ้าย/ขวา
-local MARGIN_Y = 60   -- เว้นบน/ล่าง
-
 local main = make("Frame", {
-    Name = "Main",
-    Parent = mainGui,
-    Size = UDim2.new(1, -(MARGIN_X*2), 1, -(MARGIN_Y*2)), -- ขยายเต็มจอ แต่มี margin
-    Position = UDim2.new(0, MARGIN_X, 0, MARGIN_Y),       -- จัดตำแหน่ง
-    BackgroundColor3 = BG,
-    BorderSizePixel = 0,
-    Active = true,
-    Draggable = true
+    Name="Main", Parent=mainGui, Size=UDim2.new(0,620,0,380),
+    BackgroundColor3=BG, BorderSizePixel=0, Active=true, Draggable=true
 },{
     make("UICorner",{CornerRadius=UDim.new(0,16)}),
     make("UIStroke",{Thickness=2, Color=ACCENT, Transparency=0.08}),
