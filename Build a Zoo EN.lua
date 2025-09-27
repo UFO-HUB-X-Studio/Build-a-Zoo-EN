@@ -331,7 +331,7 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- PATCH: Home button invisible (only emoji + text visible)
+-- PATCH: 👽Home button invisible (only emoji + text visible)
 --========================================================
 do
     local leftScroll = (left and left:FindFirstChild("LeftScroll"))
@@ -361,3 +361,87 @@ do
     end
 end
 --========================================================
+--========================================================
+-- 🟢LEFT ONLY: Auto neon border for sidebar buttons
+-- - ทำกรอบสีเขียว "ยาวกว่าปุ่มนิดนึง" ทั้งซ้ายและขวา
+-- - ใช้ได้กับปุ่มที่มีอยู่แล้ว และปุ่มที่ถูกสร้างใหม่ภายหลัง
+-- - เพิ่มอย่างเดียว (ไม่แก้ข้อความ/สไตล์เดิมของปุ่ม)
+--========================================================
+do
+    local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local EXTRA_W = 12  -- ความยาวเพิ่ม (รวมสองข้าง) => ยื่นซ้าย/ขวาข้างละ 6px
+    local EXTRA_H =  8  -- สูงเพิ่มเล็กน้อย (บน/ล่าง รวมกัน 8px)
+    local RADIUS  = 12  -- มุมโค้งให้เหมือนภาพ
+    local THICK   = 2   -- ความหนาของกรอบ
+
+    local function ensureNeonBorder(btn: GuiObject)
+        if not (btn and btn:IsA("TextButton")) then return end
+
+        -- ให้ปุ่มสูงมาตรฐาน (ถ้าคุณตั้งไว้แล้วจะไม่เป็นไร)
+        if btn.Size.Y.Offset < 40 then
+            btn.Size = UDim2.new(1, 0, 0, 40)
+        end
+
+        -- สร้างกรอบเป็น "เฟรมหุ้ม" ที่ใหญ่กว่าปุ่มเล็กน้อย
+        local wrap = btn:FindFirstChild("NeonBorder")
+        if not wrap then
+            wrap = Instance.new("Frame")
+            wrap.Name = "NeonBorder"
+            wrap.Parent = btn
+            wrap.AnchorPoint = Vector2.new(0.5, 0.5)
+            wrap.BackgroundTransparency = 1
+            wrap.BorderSizePixel = 0
+            wrap.ZIndex = math.max(0,(btn.ZIndex or 1) - 1)  -- วาง "หลัง" ปุ่ม เพื่อไม่บังการคลิก
+            -- ขยายให้ยาว/สูงกว่าปุ่มนิดนึง
+            wrap.Position = UDim2.new(0.5, 0, 0.5, 0)
+            wrap.Size = UDim2.new(1, EXTRA_W, 1, EXTRA_H)
+
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, RADIUS)
+            corner.Parent = wrap
+
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = GREEN
+            stroke.Thickness = THICK
+            stroke.Transparency = 0.10
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.LineJoinMode = Enum.LineJoinMode.Round
+            stroke.Parent = wrap
+        else
+            -- อัปเดตขนาดเผื่อปุ่มถูกเปลี่ยน
+            wrap.Size = UDim2.new(1, EXTRA_W, 1, EXTRA_H)
+        end
+    end
+
+    -- ตัวช่วย: ทำให้ทุกปุ่มลูกของ container ได้กรอบอัตโนมัติ
+    local function styleAllButtons(container: Instance)
+        if not container then return end
+        for _,child in ipairs(container:GetChildren()) do
+            if child:IsA("TextButton") then
+                ensureNeonBorder(child)
+            end
+        end
+        -- ปุ่มใหม่ในอนาคตจะถูกใส่กรอบให้อัตโนมัติ
+        if not container:FindFirstChild("_NeonBorderHook") then
+            local hook = Instance.new("Folder")
+            hook.Name = "_NeonBorderHook"
+            hook.Parent = container
+            container.ChildAdded:Connect(function(ch)
+                if ch:IsA("TextButton") then
+                    task.defer(function() ensureNeonBorder(ch) end)
+                end
+            end)
+        end
+    end
+
+    -- ใช้กับฝั่งซ้ายเท่านั้น (ตามคำสั่ง "ด้านนี้ก่อน")
+    local leftScroll =
+        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList())
+        or (left and left:FindFirstChild("LeftScroll"))
+
+    if leftScroll then
+        styleAllButtons(leftScroll)
+    end
+end
+--======================== END LEFT NEON BORDER ==========================
+
