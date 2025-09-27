@@ -289,50 +289,186 @@ local function makeScrollable(panel: Instance, opts)
 	-- (เลือกได้) มุมโค้งสำหรับปุ่มที่เพิ่มมาใหม่ในอนาคต
 	if cornerRadius then
 		for _,child in ipairs(panel:GetChildren()) do
-			if child:IsA("TextButton") or child:IsA("ImageButton") or child:IsA("Frame") then
-				if not child:FindFirstChildOfClass("UICorner") then
-					local cr = Instance.new("UICorner")
-					cr.CornerRadius = UDim.new(0, cornerRadius)
-					cr.Parent = child
-				end
-			end
+-- UFO HUB X - Scroll Patch (robust)
+-- ✅ เพิ่มเลื่อนขึ้น/ลงทั้งสองฝั่ง โดยไม่แก้โค้ดปุ่มเดิม
+-- ✅ กันพลาดเรื่องหาเฟรมไม่เจอ / ใส่แล้วไม่เลื่อน / ซ้อนซ้ำ
+-- ⚠️ วางโค้ดหลังจากสร้าง UI เสร็จแล้ว
+
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
+
+----------------------------------------------------------------------
+-- 🔧 ตั้ง path ให้ตรงกับของคุณ (คั่นด้วย /) เช่น:
+-- "UFO_HUB_X/Main/LeftPanel"  ,  "UFO_HUB_X/Main/RightPanel"
+-- ถ้าไม่รู้ path ที่ชัดเจน ให้ปล่อยว่าง แล้วระบบจะพยายามค้นหาแบบ heuristic
+----------------------------------------------------------------------
+local LEFT_PATH  = "UFO_HUB_X/Main/LeftPanel"
+local RIGHT_PATH = "UFO_HUB_X/Main/RightPanel"
+
+----------------------------------------------------------------------
+-- 🧰 helpers
+----------------------------------------------------------------------
+local function deepFindByPath(root: Instance, pathStr: string)
+	if not root or not pathStr or pathStr == "" then return nil end
+	local cur = root
+	for seg in string.gmatch(pathStr, "([^/]+)") do
+		cur = cur and cur:FindFirstChild(seg)
+		if not cur then return nil end
+	end
+	return cur
+end
+
+local function deepFindFirst(root: Instance, predicate)
+	if not root then return nil end
+	for _,d in ipairs(root:GetDescendants()) do
+		if predicate(d) then return d end
+	end
+	return nil
+end
+
+-- ค้นหาแบบ heuristic เมื่อไม่ได้กำหนด PATH
+local function guessLeftPanel()
+	-- หาเฟรมที่มีปุ่มชื่อ Home / Shop / Fishing เป็นลูกหลาน
+	return deepFindFirst(pg, function(x)
+		if x:IsA("Frame") then
+			local h = x:FindFirstChild("Home", true)
+			local s = x:FindFirstChild("Shop", true)
+			local f = x:FindFirstChild("Fishing", true)
+			if h and s and f then return true end
 		end
+		return false
+	end)
+end
+
+local function guessRightPanel()
+	-- หาเฟรมที่มีข้อความ/ปุ่ม AFK / Auto Collect Money / Auto Egg Hatch
+	return deepFindFirst(pg, function(x)
+		if x:IsA("Frame") then
+			local a = x:FindFirstChild("AFK", true)
+			local c = x:FindFirstChild("Auto Collect Money", true)
+			local e = x:FindFirstChild("Auto Egg Hatch", true)
+			if a and c and e then return true end
+		end
+		return false
+	end)
+end
+
+local function ensureScrolling(panel: Instance, opts)
+	if not panel or not panel:IsA("Frame") then
+		warn("[UFO Scroll] panel not found or not a Frame")
+		return
 	end
 
-	-- ย้ายเฉพาะ "ปุ่ม/รายการ" เดิมเข้าไปใน content
-	for _,child in ipairs(panel:GetChildren()) do
-		if child ~= scroll then
-			-- ไม่ยุ่งกับ UIStroke/UIImageLabel ที่เป็นพื้นหลังกรอบ panel เอง
-			if child:IsA("TextButton") or child:IsA("ImageButton") or child:IsA("Frame") then
-				-- ยกเว้นแผงหัวเรื่องที่คุณอาจตั้งชื่อว่า "Header","Topbar"
-				local n = string.lower(child.Name)
+	-- กันการใส่ซ้ำ
+	if panel:FindFirstChild("_Scroll") then
+		-- อัปเดต canvas อีกรอบ เผื่อคอนเทนต์เปลี่ยน
+		local list = panel._Scroll:FindFirstChild("Content") and panel._Scroll.Content:FindFirstChildOfClass("UIListLayout")
+		if list then
+			local abs = list.AbsoluteContentSize
+			panel._Scroll.Content.Size = UDim2.new(1, -(opts.padding or 10)*2, 0, abs.Y)
+			panel._Scroll.CanvasSize  = UDim2.new(0,0,0, abs.Y + (opts.padding or 10)*2)
+		end
+		print("[UFO Scroll] already installed on", panel:GetFullName())
+		return
+	end
+
+	local padding = tonumber(opts.padding) or 10
+	local spacing = tonumber(opts.spacing) or 8
+	local showBar = opts.showScrollbar
+	local keepZ   = panel.ZIndex
+
+	-- เก็บลูกเดิมไว้ก่อน
+	local children = {}
+	for _,c in ipairs(panel:GetChildren()) do
+		table.insert(children, c)
+	end
+
+	-- สร้าง ScrollingFrame
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Name = "_Scroll"
+	scroll.Parent = panel
+	scroll.AnchorPoint = Vector2.new(0.5, 0.5)
+	scroll.Position = UDim2.fromScale(0.5, 0.5)
+	scroll.Size = UDim2.fromScale(1, 1)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ClipsDescendants = true
+	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.None -- เราจะคุมเองให้เป๊ะ
+	scroll.CanvasSize = UDim2.new(0,0,0,0)
+	scroll.ScrollBarThickness = 8
+	scroll.Active = true            -- สำคัญบนมือถือให้รับทัช
+	scroll.ScrollingEnabled = true  -- เผื่อถูกปิดที่อื่น
+	scroll.ZIndex = keepZ
+
+	if showBar == false then
+		scroll.ScrollBarImageTransparency = 1
+	else
+		scroll.ScrollBarImageTransparency = 0.15
+	end
+
+	-- สร้าง content + layout
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.Parent = scroll
+	content.BackgroundTransparency = 1
+	content.Size = UDim2.new(1, -padding*2, 0, 0)
+	content.Position = UDim2.fromOffset(padding, padding)
+	content.ZIndex = keepZ
+
+	local list = Instance.new("UIListLayout")
+	list.Parent = content
+	list.FillDirection = Enum.FillDirection.Vertical
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, spacing)
+
+	-- ย้ายเฉพาะปุ่ม/รายการเดิมเข้า content (ไม่ย้าย _Scroll ที่เพิ่งสร้าง)
+	for _,c in ipairs(children) do
+		if c ~= scroll then
+			-- ข้าม UIStroke / ImageLabel ที่เป็นพื้นหลัง panel ถ้าอยากคงไว้ใต้สุด
+			if c:IsA("TextButton") or c:IsA("ImageButton") or c:IsA("TextLabel") or c:IsA("Frame") then
+				-- ถ้ามีแถบหัว panel ชื่อ Header/Topbar อยากคงไว้ไม่เลื่อน ให้ข้าม
+				local n = string.lower(c.Name)
 				if not (n == "header" or n == "topbar") then
-					child.Parent = content
+					c.Parent = content
+					c.ZIndex = keepZ
 				end
 			end
 		end
 	end
 
-	-- อัปเดต Canvas ให้พอดีคอนเทนต์
-	local function updateCanvas()
+	local function refresh()
 		local abs = list.AbsoluteContentSize
 		content.Size = UDim2.new(1, -padding*2, 0, abs.Y)
 		scroll.CanvasSize = UDim2.new(0, 0, 0, abs.Y + padding*2)
 	end
-	list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-	updateCanvas()
+	list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refresh)
+	refresh()
 
-	-- ปรับแต่งสัมผัสให้ลื่น (ค่าเริ่มต้นของ ScrollingFrame ใช้งานได้ทั้งเมาส์และทัชอยู่แล้ว)
-	scroll.ScrollBarThickness = showScrollbar == false and 6 or 8
-	-- รักษาขนาด panel เดิม
-	panel.Size = panelSize
+	print("[UFO Scroll] installed on:", panel:GetFullName())
 end
 
---------------------------------------------------------------------
--- 🚀 เรียกใช้ (แก้ชื่อให้ตรงกับของคุณด้านบน)
---------------------------------------------------------------------
-makeScrollable(LeftPanel,  { padding = 10, spacing = 8, showScrollbar = false })
-makeScrollable(RightPanel, { padding = 12, spacing = 10, showScrollbar = false })
+----------------------------------------------------------------------
+-- 🚀 RUN
+----------------------------------------------------------------------
+local leftPanel  = deepFindByPath(pg, LEFT_PATH)  or guessLeftPanel()
+local rightPanel = deepFindByPath(pg, RIGHT_PATH) or guessRightPanel()
+
+if not leftPanel then
+	warn("[UFO Scroll] LEFT panel not found. Set LEFT_PATH to your left container frame path.")
+end
+if not rightPanel then
+	warn("[UFO Scroll] RIGHT panel not found. Set RIGHT_PATH to your right container frame path.")
+end
+
+if leftPanel then
+	ensureScrolling(leftPanel,  {padding=10, spacing=8,  showScrollbar=false})
+end
+if rightPanel then
+	ensureScrolling(rightPanel, {padding=12, spacing=10, showScrollbar=false})
+			end
 -- ===== Force order: Home(1) -> Shop(2) -> Fishing(3) =====
 local function forceLeftOrder()
     if not left then return end
