@@ -331,39 +331,11 @@ end
 -- END ADD-ONLY: Scroll System
 --========================
 --========================================================
--- PATCH: Single Sidebar Button styled like screenshot (Home only)
+-- PATCH: Home button invisible (only emoji + text visible)
 --========================================================
 do
-    local GREEN = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
-    local BTN_HEIGHT = 46
-
-    -- Ensure left scroller exists (add-only)
     local leftScroll = (left and left:FindFirstChild("LeftScroll"))
-    if not leftScroll and left then
-        leftScroll = Instance.new("ScrollingFrame")
-        leftScroll.Name = "LeftScroll"
-        leftScroll.Parent = left
-        leftScroll.BackgroundTransparency = 1
-        leftScroll.BorderSizePixel = 0
-        leftScroll.ClipsDescendants = true
-        leftScroll.ScrollingDirection = Enum.ScrollingDirection.Y
-        leftScroll.ScrollBarThickness = 6
-        leftScroll.ScrollBarImageColor3 = GREEN
-        leftScroll.Size = UDim2.new(1, -20, 1, -20)
-        leftScroll.Position = UDim2.new(0, 10, 0, 10)
-
-        local list = Instance.new("UIListLayout", leftScroll)
-        list.Padding = UDim.new(0, 8)
-        list.FillDirection = Enum.FillDirection.Vertical
-        list.SortOrder = Enum.SortOrder.LayoutOrder
-
-        list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            leftScroll.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 20)
-        end)
-    end
-
     if leftScroll then
-        -- Create/Update only ONE button: Btn_Home
         local btn = leftScroll:FindFirstChild("Btn_Home")
         if not (btn and btn:IsA("TextButton")) then
             btn = Instance.new("TextButton")
@@ -371,42 +343,21 @@ do
             btn.Parent = leftScroll
         end
 
-        -- Style to match screenshot 100%
-        btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)    -- full width, 46px height
-        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        btn.AutoButtonColor = true
-        btn.Text = "👽  Home"                           -- emoji + text
+        -- Style: invisible button
+        btn.Size = UDim2.new(1, 0, 0, 40)
+        btn.BackgroundTransparency = 1     -- ล่องหน
+        btn.BorderSizePixel = 0
+        btn.AutoButtonColor = false        -- ไม่มีเอฟเฟกต์ hover
+        btn.Text = "👽  Home"               -- มีแค่ emoji + text
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 18
-        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.TextColor3 = Color3.new(1,1,1)
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.LayoutOrder = 1
 
-        -- Rounded corners 12px
-        local corner = btn:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", btn)
-        corner.CornerRadius = UDim.new(0, 12)
-
-        -- Neon green border 2px
-        local stroke = btn:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", btn)
-        stroke.Color = GREEN
-        stroke.Thickness = 2
-        stroke.Transparency = 0.1
-
-        -- Left padding for nice spacing
+        -- Padding ให้ข้อความสวย
         local pad = btn:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding", btn)
-        pad.PaddingLeft = UDim.new(0, 12)
-        pad.PaddingRight = UDim.new(0, 12)
-
-        -- Subtle hover glow (no style change)
-        if not btn:FindFirstChild("._hoverHook") then
-            local hook = Instance.new("Folder"); hook.Name = "._hoverHook"; hook.Parent = btn
-            btn.MouseEnter:Connect(function()
-                game:GetService("TweenService"):Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0.05}):Play()
-            end)
-            btn.MouseLeave:Connect(function()
-                game:GetService("TweenService"):Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0}):Play()
-            end)
-        end
+        pad.PaddingLeft = UDim.new(0, 8)
     end
 end
 --========================================================
