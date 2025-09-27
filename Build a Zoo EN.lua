@@ -167,6 +167,26 @@ do
                 ch.Parent = body
             end
         end)
+        -- 📌 Force scroll-to-top when the page shows / after layout updates
+do
+    local body = _G.UFOX_GetContentBody and _G.UFOX_GetContentBody()
+    if body then
+        local function scrollToTop()
+            body.CanvasPosition = Vector2.new(0, 0)
+        end
+
+        -- รีเซ็ตทันทีหลังสร้าง
+        task.defer(scrollToTop)
+
+        -- ถ้าขนาดแคนวาสเปลี่ยน (มีของเพิ่ม/ลบ) ให้เด้งขึ้นบน
+        body:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(scrollToTop)
+
+        -- ถ้าสลับหน้าแล้ว content ถูกทำให้มองเห็นใหม่ → เด้งขึ้นบน
+        content:GetPropertyChangedSignal("Visible"):Connect(function()
+            if content.Visible then scrollToTop() end
+        end)
+    end
+        end
 
         -- 4) เผื่อสคริปต์อื่นอยากอ้างอิงพื้นที่เลื่อนได้โดยตรง
         _G.UFOX_GetContentBody = function() return body end
