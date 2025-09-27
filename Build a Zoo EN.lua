@@ -122,6 +122,99 @@ make("UIListLayout",{Parent=left, Padding=UDim.new(0,10)})
 local content = make("Frame", {Parent=main, Size=UDim2.new(1,-210,1,-70), Position=UDim2.new(0,190,0,60),
     BackgroundColor3=D_GREY},
     {make("UICorner",{CornerRadius=UDim.new(0,12)}), make("UIStroke",{Color=ACCENT, Transparency=0.8})})
+--========================================================
+-- UFO HUB X — MAIN UI (with clean scroll system)
+--========================================================
+
+local Players = game:GetService("Players")
+local CG      = game:GetService("CoreGui")
+local LP      = Players.LocalPlayer
+
+-- helper
+local function safeParent(gui)
+    local ok=false
+    if syn and syn.protect_gui then pcall(function() syn.protect_gui(gui) end) end
+    if gethui then ok = pcall(function() gui.Parent = gethui() end) end
+    if not ok then gui.Parent = CG end
+end
+
+local function make(class, props, children)
+    local o = Instance.new(class)
+    for k,v in pairs(props or {}) do o[k] = v end
+    for _,c in ipairs(children or {}) do c.Parent = o end
+    return o
+end
+
+-- colors
+local ACCENT = Color3.fromRGB(0,255,140)
+local BG     = Color3.fromRGB(12,12,12)
+local FG     = Color3.fromRGB(230,230,230)
+
+-- ScreenGui
+local mainGui = make("ScreenGui",{Name="UFOX_ScrollUI",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling})
+safeParent(mainGui)
+
+-- Window
+local main = make("Frame",{
+    Parent=mainGui, Size=UDim2.new(0,450,0,300),
+    Position=UDim2.new(0.5,-225,0.5,-150),
+    BackgroundColor3=BG, BorderSizePixel=0, Active=true, Draggable=true
+},{
+    make("UICorner",{CornerRadius=UDim.new(0,12)}),
+    make("UIStroke",{Color=ACCENT,Thickness=2})
+})
+
+-- Title
+make("TextLabel",{
+    Parent=main, Text="UFO HUB X", Size=UDim2.new(1,0,0,40),
+    BackgroundTransparency=1, Font=Enum.Font.GothamBold, TextSize=20,
+    TextColor3=ACCENT
+},{})
+
+-- ==== Scrollable body ====
+local body = make("ScrollingFrame",{
+    Parent=main,
+    Position=UDim2.new(0,10,0,50), Size=UDim2.new(1,-20,1,-60),
+    CanvasSize=UDim2.new(0,0,0,0),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    ScrollingDirection=Enum.ScrollingDirection.Y,
+    ScrollBarThickness=6, BackgroundTransparency=1
+},{
+    make("UIListLayout",{
+        Padding=UDim.new(0,8), FillDirection=Enum.FillDirection.Vertical,
+        HorizontalAlignment=Enum.HorizontalAlignment.Center,
+        VerticalAlignment=Enum.VerticalAlignment.Top
+    })
+})
+
+-- ปุ่มตัวอย่าง
+local function addButton(name)
+    make("TextButton",{
+        Parent=body, Size=UDim2.new(1,-20,0,40),
+        Text=name, Font=Enum.Font.GothamBold, TextSize=16,
+        TextColor3=FG, BackgroundColor3=Color3.fromRGB(22,22,22)
+    },{
+        make("UICorner",{CornerRadius=UDim.new(0,8)}),
+        make("UIStroke",{Color=ACCENT})
+    })
+end
+
+-- ใส่ปุ่มกี่อันก็ได้
+addButton("Home")
+addButton("Shop")
+addButton("Fishing")
+addButton("AFK (OFF)")
+addButton("Auto Collect Money (OFF)")
+addButton("Auto Egg Hatch (OFF)")
+addButton("Extra 1")
+addButton("Extra 2")
+addButton("Extra 3")
+
+-- ==== Force scroll start at top every time ====
+body.CanvasPosition = Vector2.new(0,0)
+body:GetPropertyChangedSignal("Visible"):Connect(function()
+    if body.Visible then body.CanvasPosition = Vector2.new(0,0) end
+end)
 
 local pgHome = make("Frame",{Parent=content, Size=UDim2.new(1,-20,1,-20), Position=UDim2.new(0,10,0,10),
     BackgroundTransparency=1, Visible=true}, {})
