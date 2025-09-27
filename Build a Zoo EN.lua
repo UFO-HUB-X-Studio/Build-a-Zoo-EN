@@ -437,3 +437,5 @@ do
     if not _G.KavoCompat then _G.KavoCompat = {CreateLib = Library.CreateLib, ToggleUI = function() Library:ToggleUI() end} end
 end
 --====================== END KAVO COMPAT LAYER ======================
+
+local Tab = Window:NewTab("TabName")
