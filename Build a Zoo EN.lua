@@ -1,339 +1,249 @@
---========================================================
--- UFO HUB X — FULL PACK (Big UI + 2-Pane Scrollers + Tabs)
--- เลื่อนขึ้นลงได้ทั้ง "เมนูซ้าย" และ "คอนเทนต์ขวา"
--- มีหน้า Home/Shop ตัวอย่าง + ปุ่มสลับหน้า + API _G.UFOX
---========================================================
+----------------------------------------------------------------
+-- UFOX SCROLL+BORDER+ORDER (FULL DROP-IN, DO NOT BREAK OLD UI)
+-- - เลื่อนขึ้นลง: ทั้ง left และ content (ไม่ลบ ไม่แก้ของเดิม แค่ห่อ)
+-- - ทุกชิ้นใหม่มีขอบสีเขียวอัตโนมัติ
+-- - ลำดับ 1→2→3…: ของเก่า/ใหม่ต่อท้ายล่างเสมอ
+-- - Self-heal: กันซ้ำ/กันซ้อน/กันโดนแก้ stroke
+-- - ใส่แล้วจบ ใช้กับ UI เดิม 100%
+----------------------------------------------------------------
 
--------------------- Services --------------------
-local TS      = game:GetService("TweenService")
-local UIS     = game:GetService("UserInputService")
-local CG      = game:GetService("CoreGui")
-local Camera  = workspace.CurrentCamera
-local Players = game:GetService("Players")
+-------------------- CONFIG --------------------
+local CFG = {
+    -- สี/สโตรก
+    ACCENT               = (ACCENT or Color3.fromRGB(0,255,140)),
+    BORDER_THICKNESS     = 2,
 
--------------------- THEME --------------------
-local ACCENT  = Color3.fromRGB(0,255,140)
-local BG      = Color3.fromRGB(12,12,12)
-local FG      = Color3.fromRGB(230,230,230)
-local SUB     = Color3.fromRGB(22,22,22)
-local D_GREY  = Color3.fromRGB(16,16,16)
-local LOGO_ID = 112676905543996
+    -- สกรอลเลอร์
+    SCROLLBAR_THICKNESS  = 8,
+    SCROLLBAR_TRANS      = 0.05,
+    PADDING              = 10,   -- padding รอบๆ เนื้อหา
+    GAP                  = 10,   -- ช่องว่างระหว่างไอเท็ม (UIListLayout.Padding)
 
--------------------- CLEAN PREVIOUS --------------------
-for _, name in ipairs({"UFOHubX_Main","UFOHubX_Toggle"}) do
-    local old = CG:FindFirstChild(name)
-    if old then old:Destroy() end
+    -- Debug log (set true ถ้าอยากเห็น print)
+    DEBUG                = false,
+}
+
+local function dprint(...)
+    if CFG.DEBUG then
+        print("[UFOX]", ...)
+    end
 end
 
--------------------- Helpers --------------------
-local function safeParent(gui)
-    local ok=false
-    if syn and syn.protect_gui then pcall(function() syn.protect_gui(gui) end) end
-    if gethui then ok = pcall(function() gui.Parent = gethui() end) end
-    if not ok then gui.Parent = CG end
+-------------------- HELPERS --------------------
+local function isLayoutLike(obj)
+    return obj:IsA("UIListLayout") or obj:IsA("UIGridLayout") or obj:IsA("UITableLayout")
+        or obj:IsA("UIPadding") or obj:IsA("UICorner") or obj:IsA("UIStroke")
+        or obj:IsA("UIGradient") or obj:IsA("UISizeConstraint") or obj:IsA("UITextSizeConstraint")
+        or obj:IsA("UICanvasGroup") -- เผื่อมี
 end
-local function make(class, props, kids)
-    local o=Instance.new(class)
-    for k,v in pairs(props or {}) do o[k]=v end
-    for _,c in ipairs(kids or {}) do c.Parent=o end
-    return o
+
+-- ใส่/บังคับขอบสีเขียว
+local function forceGreenBorder(gui)
+    if not gui or not gui.Parent then return end
+    if not (gui:IsA("Frame") or gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("ImageLabel")) then
+        return
+    end
+    local stroke = gui:FindFirstChild("UFOX_Border_Green")
+    if not stroke then
+        stroke = Instance.new("UIStroke")
+        stroke.Name = "UFOX_Border_Green"
+        stroke.Parent = gui
+    end
+    stroke.Color = CFG.ACCENT
+    stroke.Thickness = CFG.BORDER_THICKNESS
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 end
-local function tween(obj, ti, goal) TS:Create(obj, ti, goal):Play() end
 
--------------------- ScreenGuis --------------------
-local mainGui   = make("ScreenGui",{Name="UFOHubX_Main", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling},{})
-local toggleGui = make("ScreenGui",{Name="UFOHubX_Toggle", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling},{})
-safeParent(mainGui); safeParent(toggleGui)
-
--------------------- MAIN WINDOW --------------------
-local main = make("Frame",{
-    Name="Main", Parent=mainGui, Size=UDim2.new(0,640,0,400),
-    BackgroundColor3=BG, BorderSizePixel=0, Active=true, Draggable=true
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,16)}),
-    make("UIStroke",{Thickness=2, Color=ACCENT, Transparency=0.08}),
-    make("UIGradient",{Rotation=90, Color=ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(18,18,18)),
-        ColorSequenceKeypoint.new(1, BG)
-    }})
-})
-
--- Top bar
-local top = make("Frame",{Parent=main, Size=UDim2.new(1,0,0,50), BackgroundTransparency=1},{})
-make("ImageLabel",{Parent=top, BackgroundTransparency=1, Image="rbxassetid://"..LOGO_ID, Size=UDim2.new(0,26,0,26), Position=UDim2.new(0,16,0,12)},{})
-local title = make("Frame",{Parent=top, BackgroundTransparency=1, Size=UDim2.new(1,-160,1,0), Position=UDim2.new(0,50,0,0)},{})
-make("UIListLayout",{Parent=title, FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-    HorizontalAlignment=Enum.HorizontalAlignment.Left, VerticalAlignment=Enum.VerticalAlignment.Center},{})
-make("TextLabel",{Parent=title, BackgroundTransparency=1, AutomaticSize=Enum.AutomaticSize.X, Size=UDim2.new(0,0,1,0),
-    Font=Enum.Font.GothamBold, TextSize=22, Text="UFO", TextColor3=ACCENT},{})
-make("TextLabel",{Parent=title, BackgroundTransparency=1, AutomaticSize=Enum.AutomaticSize.X, Size=UDim2.new(0,0,1,0),
-    Font=Enum.Font.GothamBold, TextSize=22, Text="HUB X", TextColor3=Color3.new(1,1,1)},{})
-local underline = make("Frame",{Parent=top, Size=UDim2.new(1,0,0,2), Position=UDim2.new(0,0,1,-2), BackgroundColor3=ACCENT},{
-    make("UIGradient",{Transparency=NumberSequence.new{
-        NumberSequenceKeypoint.new(0,0.7), NumberSequenceKeypoint.new(0.5,0), NumberSequenceKeypoint.new(1,0.7)
-    }})
-})
-
-local function neonButton(parent, text, xOff)
-    return make("TextButton",{
-        Parent=parent, Text=text, Font=Enum.Font.GothamBold, TextSize=18, TextColor3=FG,
-        BackgroundColor3=SUB, Size=UDim2.new(0,36,0,36), Position=UDim2.new(1,xOff,0,7),
-        AutoButtonColor=false
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Transparency=0.75})
-    })
+-- จัดลำดับแบบต่อท้าย
+local function nextOrderFor(container)
+    local n = container:GetAttribute("UFOX_NextOrder") or 1
+    container:SetAttribute("UFOX_NextOrder", n + 1)
+    return n
 end
-local btnMini  = neonButton(top,"–",-88)
-local btnClose = neonButton(top,"", -46); btnClose.BackgroundColor3 = Color3.fromRGB(210,35,50)
-local function mkX(rot)
-    local b = Instance.new("Frame"); b.Parent=btnClose; b.AnchorPoint=Vector2.new(0.5,0.5)
-    b.Position=UDim2.new(0.5,0,0.5,0); b.Size=UDim2.new(0,18,0,2)
-    b.BackgroundColor3=Color3.new(1,1,1); b.BorderSizePixel=0; b.Rotation=rot
-    Instance.new("UICorner", b).CornerRadius=UDim.new(0,1)
+
+-- ตรวจว่ามี scroller เดิมแล้วไหม
+local function findScroller(target, key)
+    return target:FindFirstChild("UFOX_Scroller_"..key)
 end
-mkX(45); mkX(-45)
 
--- Sidebar (LEFT) : container + scroller
-local leftContainer = make("Frame",{
-    Parent=main, Size=UDim2.new(0,180,1,-60), Position=UDim2.new(0,12,0,55),
-    BackgroundColor3=Color3.fromRGB(18,18,18)
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,12)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.85})
-})
-
-local leftScroll = make("ScrollingFrame",{
-    Name="UFOX_LeftScroll", Parent=leftContainer, Size=UDim2.fromScale(1,1),
-    BackgroundTransparency=1, BorderSizePixel=0, ClipsDescendants=true,
-    ScrollingDirection=Enum.ScrollingDirection.Y, ScrollBarThickness=8,
-    VerticalScrollBarInset=Enum.ScrollBarInset.Always, ScrollBarImageColor3=ACCENT,
-    ScrollBarImageTransparency=0.05
-},{})
-pcall(function() leftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
-make("UIPadding",{Parent=leftScroll, PaddingTop=UDim.new(0,10), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,10), PaddingRight=UDim.new(0,10)},{})
-local leftList = make("UIListLayout",{
-    Parent=leftScroll, FillDirection=Enum.FillDirection.Vertical, Padding=UDim.new(0,10),
-    HorizontalAlignment=Enum.HorizontalAlignment.Stretch, VerticalAlignment=Enum.VerticalAlignment.Top,
-    SortOrder=Enum.SortOrder.LayoutOrder
-},{})
-
--- Content (RIGHT) : container + scroller
-local contentContainer = make("Frame",{
-    Parent=main, Size=UDim2.new(1,-220,1,-70), Position=UDim2.new(0,200,0,60),
-    BackgroundColor3=D_GREY
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,12)}),
-    make("UIStroke",{Color=ACCENT, Transparency=0.8})
-})
-
-local rightScroll = make("ScrollingFrame",{
-    Name="UFOX_RightScroll", Parent=contentContainer, Size=UDim2.fromScale(1,1),
-    BackgroundTransparency=1, BorderSizePixel=0, ClipsDescendants=true,
-    ScrollingDirection=Enum.ScrollingDirection.Y, ScrollBarThickness=8,
-    VerticalScrollBarInset=Enum.ScrollBarInset.Always, ScrollBarImageColor3=ACCENT,
-    ScrollBarImageTransparency=0.05
-},{})
-pcall(function() rightScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
-make("UIPadding",{Parent=rightScroll, PaddingTop=UDim.new(0,10), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,10), PaddingRight=UDim.new(0,10)},{})
-local rightList = make("UIListLayout",{
-    Parent=rightScroll, FillDirection=Enum.FillDirection.Vertical, Padding=UDim.new(0,10),
-    HorizontalAlignment=Enum.HorizontalAlignment.Stretch, VerticalAlignment=Enum.VerticalAlignment.Top,
-    SortOrder=Enum.SortOrder.LayoutOrder
-},{})
-
--- Fallback canvas update (ถ้าสตูดิโอไม่รองรับ AutomaticCanvasSize)
-local function updateCanvas(sc, list)
-    local sum=0
+-- อัปเดต CanvasSize กรณีไม่มี AutomaticCanvasSize.Y
+local function manualUpdateCanvas(sc)
+    if sc.AutomaticCanvasSize == Enum.AutomaticSize.Y then return end
+    local pad   = sc:FindFirstChild("UFOX_Pad")
+    local list  = sc:FindFirstChild("UFOX_List")
+    local total = 0
     for _,c in ipairs(sc:GetChildren()) do
-        if c:IsA("GuiObject") and not c:IsA("UIPadding") and not c:IsA("UIListLayout") then
-            sum += c.AbsoluteSize.Y + list.Padding.Offset
+        if c:IsA("GuiObject") and c ~= pad and c ~= list then
+            total += c.AbsoluteSize.Y + (list and list.Padding.Offset or 0)
         end
     end
-    sc.CanvasSize = UDim2.new(0,0,0,sum + 10)
-end
-leftList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    leftScroll.CanvasPosition = Vector2.new(0,0); updateCanvas(leftScroll,leftList)
-end)
-rightList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    rightScroll.CanvasPosition = Vector2.new(0,0); updateCanvas(rightScroll,rightList)
-end)
-
--------------------- Tabs (Home / Shop) --------------------
-local function mkSideBtn(name, icon, order)
-    local btn = make("TextButton",{
-        Name=name, Parent=leftScroll, LayoutOrder=order or 1,
-        AutoButtonColor=false, Text="", Size=UDim2.new(1, -4, 0, 44),
-        BackgroundColor3=SUB
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Name="Stroke", Color=ACCENT, Thickness=2, Transparency=0})
-    })
-    local row = make("Frame",{Parent=btn, BackgroundTransparency=1, Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0)},{
-        make("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
-            HorizontalAlignment=Enum.HorizontalAlignment.Left, VerticalAlignment=Enum.VerticalAlignment.Center})
-    })
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.fromOffset(20,20),
-        Font=Enum.Font.GothamBold, TextSize=16, Text=icon, TextColor3=FG},{})
-    make("TextLabel",{Parent=row, BackgroundTransparency=1, Size=UDim2.new(1,-36,1,0),
-        Font=Enum.Font.GothamBold, TextSize=15, Text=name:gsub("^UFOX_",""), TextXAlignment=Enum.TextXAlignment.Left, TextColor3=FG},{})
-    return btn
+    total += CFG.PADDING
+    sc.CanvasSize = UDim2.new(0,0,0, total)
 end
 
-local btnHome = mkSideBtn("UFOX_HomeBtn","🏠",1)
-local btnShop = mkSideBtn("UFOX_ShopBtn","🛒",2)
+-- ย้ายลูกเก่าเข้า scroller + set order + stroke
+local function migrateChildrenInto(sc, from)
+    from:SetAttribute("UFOX_NextOrder", 1)
 
--- หน้าคอนเทนต์ (วางเป็น "Page Frame" ใน rightScroll)
-local function mkPage(name, order)
-    local pg = make("Frame",{
-        Name=name, Parent=rightScroll, LayoutOrder=order or 1,
-        BackgroundTransparency=1, Size=UDim2.new(1,-4, 0, 0), AutomaticSize=Enum.AutomaticSize.Y
-    },{})
-    return pg
-end
-
-local pgHome = mkPage("pgHome",1)
-local pgShop = mkPage("pgShop",2)
-
--- ตัวอย่างคอนเทนต์ใน Home
-local function mkCard(parent, titleText, height)
-    local card = make("Frame",{
-        Parent=parent, BackgroundColor3=Color3.fromRGB(18,18,18),
-        Size=UDim2.new(1, -4, 0, height or 56)
-    },{
-        make("UICorner",{CornerRadius=UDim.new(0,10)}),
-        make("UIStroke",{Color=ACCENT, Transparency=0.15, Thickness=2})
-    })
-    make("TextLabel",{Parent=card, BackgroundTransparency=1, Text=titleText, Font=Enum.Font.GothamBold,
-        TextSize=16, TextColor3=FG, TextXAlignment=Enum.TextXAlignment.Left, Size=UDim2.new(1,-24,1,0),
-        Position=UDim2.new(0,12,0,0)},{})
-    return card
-end
-mkCard(pgHome,"AFK / Auto Collect / Auto Egg Hatch",56)
-mkCard(pgHome,"Tips: เพิ่มเมนู/ระบบอื่นได้เรื่อย ๆ",56)
-
--- ตัวอย่างคอนเทนต์ใน Shop
-mkCard(pgShop,"Shop — Coming Soon",120)
-
--- สลับหน้า
-local function setTabActive(which)
-    local isHome = (which=="Home")
-    pgHome.Visible = isHome
-    pgShop.Visible = not isHome
-    rightScroll.CanvasPosition = Vector2.new(0,0)
-
-    local stH = btnHome:FindFirstChild("Stroke")
-    local stS = btnShop:FindFirstChild("Stroke")
-    if stH then stH.Transparency = isHome and 0 or 0.4 end
-    if stS then stS.Transparency = (not isHome) and 0 or 0.4 end
-end
-btnHome.MouseButton1Click:Connect(function() setTabActive("Home") end)
-btnShop.MouseButton1Click:Connect(function() setTabActive("Shop") end)
-setTabActive("Home") -- เปิดมาหน้า Home เสมอ
-
--------------------- Toggle Button (dock + drag) --------------------
-local btnToggle = make("ImageButton",{
-    Parent=toggleGui, Size=UDim2.new(0,64,0,64), BackgroundColor3=SUB,
-    AutoButtonColor=false, ClipsDescendants=true, Active=true, Draggable=true
-},{
-    make("UICorner",{CornerRadius=UDim.new(0,10)}),
-    make("UIStroke",{Color=ACCENT, Thickness=2, Transparency=0.1})
-})
-make("ImageLabel",{Parent=btnToggle, BackgroundTransparency=1, Size=UDim2.new(1,-6,1,-6), Position=UDim2.new(0,3,0,3),
-    Image="rbxassetid://"..LOGO_ID, ScaleType=Enum.ScaleType.Stretch},{
-    make("UICorner",{CornerRadius=UDim.new(0,8)})
-})
-local hidden=false
-local function setHidden(s) hidden=s; mainGui.Enabled = not hidden end
-btnToggle.MouseButton1Click:Connect(function() setHidden(not hidden) end)
-UIS.InputBegan:Connect(function(i,gp) if not gp and i.KeyCode==Enum.KeyCode.RightControl then setHidden(not hidden) end end)
-
--- ย่อ/ขยาย
-local collapsed=false
-local originalSize = main.Size
-btnMini.MouseButton1Click:Connect(function()
-    collapsed = not collapsed
-    if collapsed then
-        leftContainer.Visible=false; contentContainer.Visible=false; underline.Visible=false
-        tween(main, TweenInfo.new(.2), {Size=UDim2.new(0,640,0,56)})
-        btnMini.Text="▢"
-    else
-        leftContainer.Visible=true; contentContainer.Visible=true; underline.Visible=true
-        tween(main, TweenInfo.new(.2), {Size=originalSize})
-        btnMini.Text="–"
+    -- เก็บ “GuiObject ที่ไม่ใช่ layout-like” ทั้งหมด
+    local listToMove = {}
+    for _,ch in ipairs(from:GetChildren()) do
+        if ch ~= sc and ch:IsA("GuiObject") and (not isLayoutLike(ch)) then
+            table.insert(listToMove, ch)
+        end
     end
-end)
-btnClose.MouseButton1Click:Connect(function() setHidden(true) end)
 
--------------------- Center on screen + dock toggle left --------------------
-local X_OFFSET, Y_OFFSET, TOGGLE_GAP, TOGGLE_DY = 18, -40, 60, -70
-local CENTER_TWEEN, CENTER_TIME, TOGGLE_DOCKED = true, 0.25, true
-local function tweenPos(obj, pos) tween(obj, TweenInfo.new(CENTER_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = pos}) end
-local function dockToggleToMain()
-    local mPos, mSize = main.AbsolutePosition, main.AbsoluteSize
-    local tX = math.floor(mPos.X - btnToggle.AbsoluteSize.X - TOGGLE_GAP)
-    local tY = math.floor(mPos.Y + (mSize.Y - btnToggle.AbsoluteSize.Y)/2 + TOGGLE_DY)
-    btnToggle.Position = UDim2.fromOffset(tX, tY)
-end
-local function centerMain(animated)
-    local vp = Camera.ViewportSize
-    local target = UDim2.fromOffset(
-        math.floor((vp.X - main.AbsoluteSize.X)/2) + X_OFFSET,
-        math.floor((vp.Y - main.AbsoluteSize.Y)/2) + Y_OFFSET
-    )
-    if animated and CENTER_TWEEN then tweenPos(main, target) else main.Position = target end
-    if TOGGLE_DOCKED then dockToggleToMain() end
-end
-centerMain(false)
-Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function() centerMain(false) end)
-main.InputEnded:Connect(function(i)
-    if i.UserInputType==Enum.UserInputType.MouseButton1 and TOGGLE_DOCKED then
-        dockToggleToMain()
+    -- ถ้ามี LayoutOrder เดิม, ให้เรียงตามนั้น; ถ้าไม่มีก็เรียงตามลำดับที่เจอ
+    local hasOrder = false
+    for _,g in ipairs(listToMove) do
+        if g.LayoutOrder and g.LayoutOrder ~= 0 then hasOrder = true break end
     end
-end)
-btnToggle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        TOGGLE_DOCKED = false
+    if hasOrder then
+        table.sort(listToMove, function(a,b) return a.LayoutOrder < b.LayoutOrder end)
     end
-end)
-UIS.InputBegan:Connect(function(i,gp)
-    if gp then return end
-    if i.KeyCode==Enum.KeyCode.F9 then
-        TOGGLE_DOCKED = true; centerMain(true)
-    elseif i.KeyCode==Enum.KeyCode.F8 then
-        TOGGLE_DOCKED = not TOGGLE_DOCKED
-        if TOGGLE_DOCKED then dockToggleToMain() end
-    end
-end)
 
--------------------- PUBLIC API (เพื่ออนาคต) --------------------
-_G.UFOX = _G.UFOX or {}
-_G.UFOX.GetScrollers = function() return leftScroll, rightScroll end
-_G.UFOX.AddSection = function(side, text)
-    local parent = (side=="left") and leftScroll or rightScroll
-    local h = Instance.new("TextLabel")
-    h.Name = "Section_"..(text or "Section")
-    h.Parent = parent
-    h.BackgroundTransparency = 1
-    h.Font = Enum.Font.GothamBold
-    h.TextSize = 16
-    h.TextXAlignment = Enum.TextXAlignment.Left
-    h.TextColor3 = ACCENT
-    h.Text = tostring(text or "Section")
-    h.Size = UDim2.new(1,-4,0,18)
-    return h
+    for _,gui in ipairs(listToMove) do
+        gui.Parent = sc
+        gui.LayoutOrder = nextOrderFor(sc)
+        forceGreenBorder(gui)
+    end
 end
-_G.UFOX.AddCard = function(side, titleText, height)
-    local parent = (side=="left") and leftScroll or rightScroll
-    local card = Instance.new("Frame")
-    card.Parent = parent
-    card.BackgroundColor3 = Color3.fromRGB(18,18,18)
-    card.Size = UDim2.new(1,-4,0,height or 56)
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0,10)
-    local st = Instance.new("UIStroke", card); st.Color=ACCENT; st.Transparency=0.15; st.Thickness=2
-    local lb = Instance.new("TextLabel")
-    lb.Parent=card; lb.BackgroundTransparency=1; lb.Font=Enum.Font.GothamBold; lb.TextSize=16
-    lb.TextColor3=FG; lb.TextXAlignment=Enum.TextXAlignment.Left; lb.Text=titleText or "Card"
-    lb.Size=UDim2.new(1,-24,1,0); lb.Position=UDim2.new(0,12,0,0)
-    return card
+
+-- ติดตั้ง scroller ให้ target frame
+local function installScroller(targetFrame, key)
+    if not targetFrame or not targetFrame:IsA("Frame") then
+        dprint("skip install: target not Frame", key, targetFrame)
+        return nil
+    end
+
+    -- กันติดตั้งซ้ำ
+    local exists = findScroller(targetFrame, key)
+    if exists then
+        dprint("scroller exists", key)
+        return exists
+    end
+
+    -- สร้าง ScrollingFrame
+    local sc = Instance.new("ScrollingFrame")
+    sc.Name = "UFOX_Scroller_"..key
+    sc.Parent = targetFrame
+    sc.Size = UDim2.fromScale(1,1)
+    sc.Position = UDim2.fromOffset(0,0)
+    sc.BackgroundTransparency = 1
+    sc.BorderSizePixel = 0
+    sc.ClipsDescendants = true
+
+    sc.ScrollingDirection = Enum.ScrollingDirection.Y
+    sc.ScrollBarThickness = CFG.SCROLLBAR_THICKNESS
+    sc.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+    sc.ScrollBarImageColor3 = CFG.ACCENT
+    sc.ScrollBarImageTransparency = CFG.SCROLLBAR_TRANS
+    sc.CanvasPosition = Vector2.new(0,0)
+    pcall(function() sc.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+
+    -- padding
+    local pad = Instance.new("UIPadding")
+    pad.Name = "UFOX_Pad"
+    pad.PaddingTop    = UDim.new(0, CFG.PADDING)
+    pad.PaddingBottom = UDim.new(0, CFG.PADDING)
+    pad.PaddingLeft   = UDim.new(0, CFG.PADDING)
+    pad.PaddingRight  = UDim.new(0, CFG.PADDING)
+    pad.Parent = sc
+
+    -- list layout แนวตั้ง
+    local list = Instance.new("UIListLayout")
+    list.Name = "UFOX_List"
+    list.Parent = sc
+    list.FillDirection = Enum.FillDirection.Vertical
+    list.Padding = UDim.new(0, CFG.GAP)
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Stretch
+    list.VerticalAlignment   = Enum.VerticalAlignment.Top
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+
+    -- อัปเดต Canvas ถ้าต้องทำเอง
+    list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        sc.CanvasPosition = Vector2.new(0,0)
+        manualUpdateCanvas(sc)
+    end)
+
+    -- ย้ายลูกเดิมเข้า scroller
+    migrateChildrenInto(sc, targetFrame)
+
+    -- handler: ใส่ของใหม่ที่ target หรือ sc เอง
+    local function handleChild(obj)
+        if not obj:IsA("GuiObject") or isLayoutLike(obj) then return end
+        if obj.Parent == targetFrame then
+            obj.Parent = sc
+        end
+        obj.LayoutOrder = nextOrderFor(sc)
+        forceGreenBorder(obj)
+        manualUpdateCanvas(sc)
+    end
+
+    targetFrame.ChildAdded:Connect(function(ch) task.defer(handleChild, ch) end)
+    sc.ChildAdded:Connect(function(ch) task.defer(handleChild, ch) end)
+
+    -- self-heal: stroke ถูกแก้ -> รีเซ็ต
+    sc.DescendantAdded:Connect(function(d)
+        if d:IsA("UIStroke") and d.Name == "UFOX_Border_Green" then
+            task.defer(function()
+                if d.Parent and d.Parent:IsA("GuiObject") then
+                    d.Color = CFG.ACCENT
+                    d.Thickness = CFG.BORDER_THICKNESS
+                    d.Transparency = 0
+                    d.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                end
+            end)
+        end
+    end)
+
+    -- บังคับไปบนสุด + อัปเดตแรก
+    task.delay(0.05, function()
+        sc.CanvasPosition = Vector2.new(0,0)
+        manualUpdateCanvas(sc)
+    end)
+
+    dprint("scroller installed for", key)
+    return sc
 end
+
+----------------------------------------------------------------
+-- >>> ติดตั้งให้ทั้ง 2 ฝั่ง: left และ content <<<
+-- หมายเหตุ: โค้ดนี้ “ต้องวางต่อท้าย” ตอนที่ left/content ถูกสร้างแล้ว
+----------------------------------------------------------------
+local okL, scLeft = pcall(function() return installScroller(left,    "LEFT")    end)
+local okR, scRight= pcall(function() return installScroller(content, "CONTENT") end)
+if not okL then warn("[UFOX] install LEFT failed:", scLeft) end
+if not okR then warn("[UFOX] install CONTENT failed:", scRight) end
+
+-- เสริม: กรณี dev ไปเปลี่ยน Size/Position ของ content/left ภายหลัง → รักษา scroller ให้เต็มเสมอ
+for _,pair in ipairs({
+    {frame = left,    key = "LEFT"},
+    {frame = content, key = "CONTENT"},
+}) do
+    local fr = pair.frame
+    if fr and fr:IsA("GuiObject") then
+        fr:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            local sc = findScroller(fr, pair.key)
+            if sc then
+                sc.Size = UDim2.fromScale(1,1)
+                manualUpdateCanvas(sc)
+            end
+        end)
+        fr.AncestryChanged:Connect(function()
+            local sc = findScroller(fr, pair.key)
+            if sc then
+                sc.Size = UDim2.fromScale(1,1)
+                manualUpdateCanvas(sc)
+            end
+        end)
+    end
+end
+
+-- จบ. แค่วางบล็อคนี้ “ต่อท้ายสุด” ก็จะ:
+-- - เลื่อนขึ้นลงได้ทั้งซ้ายและขวา
+-- - ทุกชิ้นมีขอบสีเขียว
+-- - อะไรที่สร้างใหม่ → ต่อท้ายล่าง (1..N)
+-- - ไม่แตะต้องโครง/สไตล์เดิมของคุณ
+----------------------------------------------------------------
