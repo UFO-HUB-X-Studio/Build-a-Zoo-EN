@@ -411,3 +411,109 @@ do
 
     styleAllButtons(leftScroll)
 end
+--========================================================
+-- LEFT ONLY: Fixed-length overlay border (above all UIs)
+--  - ยาวกว่าปุ่มข้างละ 18px (แก้ที่ SIDE_EXT)
+--  - วาดใน ScreenGui แยก DisplayOrder สูงสุด → ไม่โดนบัง
+--========================================================
+do
+    local GREEN     = (typeof(ACCENT)=="Color3" and ACCENT) or Color3.fromRGB(0,255,140)
+    local SIDE_EXT  = 18   -- ยื่นออก "แต่ละข้าง" กี่พิกเซล (เพิ่ม/ลดได้)
+    local EXTRA_H   =  8   -- สูงกว่าเนื้อปุ่มอีกเล็กน้อย
+    local RADIUS    = 12
+    local THICK     = 2
+
+    -- หา LeftScroll (คอนเทนเนอร์ปุ่มฝั่งซ้าย)
+    local leftScroll =
+        (_G.UFOHubX_GetLeftList and _G.UFOHubX_GetLeftList()) or
+        (left and left:FindFirstChild("LeftScroll"))
+    if not (leftScroll and leftScroll:IsA("ScrollingFrame")) then return end
+
+    -- สร้าง ScreenGui overlay แยก (อยู่บนสุด)
+    local overlayGui = game:GetService("CoreGui"):FindFirstChild("UFOHubX_Overlay")
+    if not overlayGui then
+        overlayGui = Instance.new("ScreenGui")
+        overlayGui.Name = "UFOHubX_Overlay"
+        overlayGui.ResetOnSpawn = false
+        overlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        overlayGui.DisplayOrder = 999  -- สูงกว่า UI ใหญ่แน่นอน
+        if syn and syn.protect_gui then pcall(function() syn.protect_gui(overlayGui) end) end
+        if gethui then pcall(function() overlayGui.Parent = gethui() end) else overlayGui.Parent = game:GetService("CoreGui") end
+    end
+
+    -- เลเยอร์วาดกรอบเต็มหน้าจอ
+    local overlay = overlayGui:FindFirstChild("LeftOverlay")
+    if not overlay then
+        overlay = Instance.new("Frame")
+        overlay.Name = "LeftOverlay"
+        overlay.Parent = overlayGui
+        overlay.BackgroundTransparency = 1
+        overlay.BorderSizePixel = 0
+        overlay.ClipsDescendants = false
+        overlay.Size = UDim2.new(1,0,1,0)
+        overlay.Position = UDim2.new(0,0,0,0)
+        overlay.ZIndex = 999
+        overlay.Active = false
+    end
+
+    -- สร้าง/อัปเดตกรอบให้แต่ละปุ่ม (อ้างอิงตำแหน่งจริงบนจอ)
+    local function drawFor(btn: TextButton)
+        if not (btn and btn:IsA("TextButton")) then return end
+
+        local name = "Border_"..btn:GetDebugId(0) -- กันชื่อชนแม้รีเฟรช
+        local b = overlay:FindFirstChild(name)
+        if not b then
+            b = Instance.new("Frame")
+            b.Name = name
+            b.Parent = overlay
+            b.BackgroundTransparency = 1
+            b.BorderSizePixel = 0
+            b.Active = false
+            b.ZIndex = 999
+
+            local c = Instance.new("UICorner", b)  c.CornerRadius = UDim.new(0, RADIUS)
+            local s = Instance.new("UIStroke", b)
+            s.Color = GREEN
+            s.Thickness = THICK
+            s.Transparency = 0.10
+            s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            s.LineJoinMode = Enum.LineJoinMode.Round
+        end
+
+        -- วัดจากตำแหน่ง/ขนาดจริง (Absolute) บนจอ → ไม่ต้องพึ่ง CanvasPosition
+        local absPos  = btn.AbsolutePosition
+        local absSize = btn.AbsoluteSize
+
+        -- ขนาดกรอบ = ขนาดปุ่ม + ส่วนยื่นสองข้าง + สูงเพิ่ม
+        local w = absSize.X + SIDE_EXT*2
+        local h = absSize.Y + EXTRA_H
+        local x = absPos.X - SIDE_EXT
+        local y = absPos.Y - math.floor(EXTRA_H/2)
+
+        b.Position = UDim2.fromOffset(x, y)
+        b.Size     = UDim2.fromOffset(w, h)
+        b.Visible  = btn.Visible
+    end
+
+    -- วาดให้ทุกปุ่มในซ้าย
+    local function refreshAll()
+        for _,ch in ipairs(leftScroll:GetChildren()) do
+            if ch:IsA("TextButton") then drawFor(ch) end
+        end
+    end
+
+    refreshAll()
+
+    -- ผูกอัปเดตอัตโนมัติเมื่อขนาด/ตำแหน่ง/เลื่อนเปลี่ยน
+    leftScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshAll)
+    leftScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshAll)
+    leftScroll.ChildAdded:Connect(function(ch) if ch:IsA("TextButton") then task.defer(function() drawFor(ch) end) end end)
+    for _,ch in ipairs(leftScroll:GetChildren()) do
+        if ch:IsA("TextButton") then
+            ch:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() drawFor(ch) end)
+            ch:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() drawFor(ch) end)
+            ch:GetPropertyChangedSignal("Visible"):Connect(function() drawFor(ch) end)
+        end
+    end
+end
+--==================== END LEFT FIXED OVERLAY BORDER ====================
